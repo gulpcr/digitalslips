@@ -48,6 +48,10 @@ coverage/
 htmlcov/
 .pytest_cache/
 
+# Private keys
+*.pem
+**/keys/
+
 # Claude Code
 .claude/
 
