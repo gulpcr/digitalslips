@@ -1,27 +1,33 @@
-# Frontend Dockerfile
-FROM node:20-alpine
+# =========================
+# Build stage
+# =========================
+FROM node:20-alpine AS build
 
-# Set working directory
 WORKDIR /app
 
-# Set environment variables
-ENV NODE_ENV=development
-
-# Copy package files
 COPY package.json package-lock.json* ./
-
-# Install dependencies
 RUN npm install
 
-# Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 5173
+# Build production assets
+RUN npm run build
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:5173 || exit 1
 
-# Run development server
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# =========================
+# Runtime stage
+# =========================
+FROM nginx:alpine
+
+# Remove default config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy your nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built frontend
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

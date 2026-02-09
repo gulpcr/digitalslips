@@ -1,5 +1,9 @@
+version: "3.9"
+
 services:
+  # =========================
   # PostgreSQL Database
+  # =========================
   postgres:
     image: postgres:15-alpine
     container_name: precision-receipt-db
@@ -9,7 +13,7 @@ services:
       POSTGRES_DB: precision_receipt
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5433:5432"  # Using 5433 instead of 5432
+      - "5433:5432"   # optional, can be removed in prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,13 +25,15 @@ services:
       - precision-network
     restart: unless-stopped
 
-  # Redis for Caching/Sessions
+  # =========================
+  # Redis
+  # =========================
   redis:
     image: redis:7-alpine
     container_name: precision-receipt-redis
     command: redis-server --appendonly yes
     ports:
-      - "6380:6379"  # Using 6380 instead of 6379
+      - "6380:6379"   # optional, can be removed in prod
     volumes:
       - redis_data:/data
     healthcheck:
@@ -39,11 +45,12 @@ services:
       - precision-network
     restart: unless-stopped
 
-  # Python Backend API
+  # =========================
+  # Backend API
+  # =========================
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
     container_name: precision-receipt-backend
     depends_on:
       postgres:
@@ -54,41 +61,37 @@ services:
       DATABASE_URL: postgresql://precision:precision123@postgres:5432/precision_receipt
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      NODE_ENV: development
+      NODE_ENV: production
     ports:
-      - "8002:8000"  # Using 8002 to avoid Kong conflict
+      - "8000:8000"
     volumes:
-      - ./backend:/app
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
     networks:
       - precision-network
     restart: unless-stopped
 
-  # React Frontend
+  # =========================
+  # Frontend (Nginx + Vite build)
+  # =========================
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
     container_name: precision-receipt-frontend
     depends_on:
       - backend
-    environment:
-      VITE_API_URL: http://localhost:8002/api
     ports:
-      - "5174:5173"  # Using 5174 instead of 5173
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "80:80"
     networks:
       - precision-network
     restart: unless-stopped
 
+  # =========================
   # WhatsApp Webhook Server
+  # =========================
   whatsapp:
     build:
       context: ./backend
-      dockerfile: Dockerfile
     container_name: precision-receipt-whatsapp
     depends_on:
       postgres:
@@ -99,29 +102,30 @@ services:
       DATABASE_URL: postgresql://precision:precision123@postgres:5432/precision_receipt
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      NODE_ENV: development
+      NODE_ENV: production
       WHATSAPP_PORT: 8000
     ports:
-      - "9001:8000"  # WhatsApp server on port 9001
+      - "9001:8000"
+    command: python -m app.whatsapp.whatsapp_server
     volumes:
-      - ./backend:/app
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
-    command: python -m app.whatsapp.whatsapp_server
     networks:
       - precision-network
     restart: unless-stopped
 
+# =========================
+# Volumes
+# =========================
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   backend_uploads:
-    driver: local
   backend_logs:
-    driver: local
 
+# =========================
+# Network
+# =========================
 networks:
   precision-network:
     driver: bridge
