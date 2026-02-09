@@ -1,0 +1,22 @@
+Restart all services:                                                                                                                     cd f:\edm\ReceiptSystem\ReceiptSystemproj\precision-receipt-complete
+  docker-compose restart                                                                                                                  
+                                                                                                                                          
+  Restart specific services:
+  docker-compose restart backend
+  docker-compose restart frontend
+  docker-compose restart postgres
+  docker-compose restart redis
+
+  Stop and start:
+  docker-compose down
+  docker-compose up -d
+
+  Rebuild and restart (after code changes):
+  docker-compose up -d --build --force-recreate backend frontend
+
+  View logs:
+  docker-compose logs -f backend
+  docker-compose logs --tail=50 backend
+
+  Check status:
+  docker-compose ps

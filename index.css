@@ -1,0 +1,175 @@
+/**
+ * Global Styles & Tailwind CSS
+ * Precision Receipt - Meezan Bank
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================
+   CSS Custom Properties (Theme Tokens)
+   ================================ */
+:root {
+  /* Colors - Primary (Brand Navy) */
+  --color-primary: #0B1F3B;
+  --color-primary-500: #0B1F3B;
+  
+  /* Colors - Accent (Electric Cyan) */
+  --color-accent: #00A7FF;
+  --color-accent-500: #00A7FF;
+  
+  /* Colors - Background */
+  --color-bg-light: #F6F8FB;
+  --color-bg-surface: #FFFFFF;
+  
+  /* Colors - Text */
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  
+  /* Colors - Border */
+  --color-border: #E2E8F0;
+  
+  /* Colors - Status */
+  --color-success: #16A34A;
+  --color-warning: #F59E0B;
+  --color-error: #DC2626;
+  
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-size-base: 16px;
+  --line-height-normal: 1.6;
+  
+  /* Spacing */
+  --spacing-card: 16px;
+  --spacing-card-lg: 24px;
+  
+  /* Border Radius */
+  --radius-button: 8px;
+  --radius-card: 12px;
+  --radius-input: 6px;
+  
+  /* Transitions */
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ================================
+   Base Styles
+   ================================ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background-light text-text-primary;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-text-primary font-bold;
+  }
+  
+  h1 {
+    @apply text-4xl;
+  }
+  
+  h2 {
+    @apply text-3xl;
+  }
+  
+  h3 {
+    @apply text-2xl;
+  }
+  
+  h4 {
+    @apply text-xl;
+  }
+  
+  h5 {
+    @apply text-lg;
+  }
+  
+  h6 {
+    @apply text-base;
+  }
+}
+
+/* ================================
+   Component Utilities
+   ================================ */
+@layer components {
+  /* Focus Ring */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2;
+  }
+  
+  /* Scrollbar Styling */
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded hover:bg-gray-400;
+  }
+}
+
+/* ================================
+   Utility Classes
+   ================================ */
+@layer utilities {
+  /* Text Utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .animate-slide-in-up {
+    animation: slideInUp 0.3s ease-out;
+  }
+  
+  @keyframes slideInUp {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* ================================
+   Print Styles
+   ================================ */
+@media print {
+  body {
+    @apply bg-white;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
