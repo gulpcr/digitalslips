@@ -1,0 +1,52 @@
+# Secrets / Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+nul
+NUL
+**/nul
+**/NUL
+
+# Archives / large files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Docker
+*.log
+
+# Testing / Coverage
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Misc
+mnt/
