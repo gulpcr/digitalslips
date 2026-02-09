@@ -248,8 +248,8 @@ const UserManagement: React.FC = () => {
                 <p className="text-sm text-text-secondary font-medium">Total Users</p>
                 <h3 className="text-2xl font-bold text-text-primary mt-2">{stats.total}</h3>
               </div>
-              <div className="p-3 bg-accent-50 rounded-lg">
-                <FiUsers className="w-6 h-6 text-accent" />
+              <div className="p-3 bg-primary-50 rounded-lg">
+                <FiUsers className="w-6 h-6 text-primary" />
               </div>
             </div>
           </Card>
@@ -302,7 +302,7 @@ const UserManagement: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <select
-                className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-white text-sm"
+                className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white text-sm"
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
               >
@@ -313,7 +313,7 @@ const UserManagement: React.FC = () => {
                 <option value="AUDITOR">Auditor</option>
               </select>
               <select
-                className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-white text-sm"
+                className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white text-sm"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
@@ -346,7 +346,7 @@ const UserManagement: React.FC = () => {
 
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="mt-4 text-text-secondary">Loading users...</p>
             </div>
           ) : filteredUsers.length === 0 ? (
@@ -369,7 +369,7 @@ const UserManagement: React.FC = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-border">
                   {filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-accent-50">
+                    <tr key={u.id} className="hover:bg-primary-50">
                       <td className="px-4 py-3">
                         <div>
                           <p className="font-medium text-text-primary">{u.full_name}</p>
@@ -494,7 +494,7 @@ const UserManagement: React.FC = () => {
                       <label
                         key={role.value}
                         className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                          createForm.role === role.value ? 'border-accent bg-accent-50' : 'border-border hover:border-accent-300'
+                          createForm.role === role.value ? 'border-primary bg-primary-50' : 'border-border hover:border-primary-300'
                         }`}
                       >
                         <input
@@ -506,9 +506,9 @@ const UserManagement: React.FC = () => {
                           className="sr-only"
                         />
                         <div className="flex items-center gap-2">
-                          <FiBriefcase className={`w-4 h-4 ${createForm.role === role.value ? 'text-accent' : 'text-text-secondary'}`} />
+                          <FiBriefcase className={`w-4 h-4 ${createForm.role === role.value ? 'text-primary' : 'text-text-secondary'}`} />
                           <div>
-                            <p className={`text-sm font-medium ${createForm.role === role.value ? 'text-accent' : 'text-text-primary'}`}>
+                            <p className={`text-sm font-medium ${createForm.role === role.value ? 'text-primary' : 'text-text-primary'}`}>
                               {role.label}
                             </p>
                             <p className="text-xs text-text-secondary">{role.description}</p>
@@ -608,7 +608,7 @@ const UserManagement: React.FC = () => {
                       <label
                         key={role.value}
                         className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                          editForm.role === role.value ? 'border-accent bg-accent-50' : 'border-border hover:border-accent-300'
+                          editForm.role === role.value ? 'border-primary bg-primary-50' : 'border-border hover:border-primary-300'
                         }`}
                       >
                         <input
@@ -620,9 +620,9 @@ const UserManagement: React.FC = () => {
                           className="sr-only"
                         />
                         <div className="flex items-center gap-2">
-                          <FiBriefcase className={`w-4 h-4 ${editForm.role === role.value ? 'text-accent' : 'text-text-secondary'}`} />
+                          <FiBriefcase className={`w-4 h-4 ${editForm.role === role.value ? 'text-primary' : 'text-text-secondary'}`} />
                           <div>
-                            <p className={`text-sm font-medium ${editForm.role === role.value ? 'text-accent' : 'text-text-primary'}`}>
+                            <p className={`text-sm font-medium ${editForm.role === role.value ? 'text-primary' : 'text-text-primary'}`}>
                               {role.label}
                             </p>
                           </div>

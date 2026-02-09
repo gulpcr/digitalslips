@@ -223,8 +223,8 @@ const BranchManagement: React.FC = () => {
               <p className="text-sm text-text-secondary font-medium">Total Branches</p>
               <h3 className="text-2xl font-bold text-text-primary mt-2">{stats.total}</h3>
             </div>
-            <div className="p-3 bg-accent-50 rounded-lg">
-              <FiMapPin className="w-6 h-6 text-accent" />
+            <div className="p-3 bg-primary-50 rounded-lg">
+              <FiMapPin className="w-6 h-6 text-primary" />
             </div>
           </div>
         </Card>
@@ -277,7 +277,7 @@ const BranchManagement: React.FC = () => {
           </div>
           <div className="flex gap-2">
             <select
-              className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-white text-sm"
+              className="px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -310,7 +310,7 @@ const BranchManagement: React.FC = () => {
 
         {loading ? (
           <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-4 text-text-secondary">Loading branches...</p>
           </div>
         ) : filteredBranches.length === 0 ? (
@@ -436,7 +436,7 @@ const BranchManagement: React.FC = () => {
                       <label
                         key={type.value}
                         className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                          createForm.branch_type === type.value ? 'border-accent bg-accent-50' : 'border-border hover:border-accent-300'
+                          createForm.branch_type === type.value ? 'border-primary bg-primary-50' : 'border-border hover:border-primary-300'
                         }`}
                       >
                         <input
@@ -448,7 +448,7 @@ const BranchManagement: React.FC = () => {
                           className="sr-only"
                         />
                         <div>
-                          <p className={`text-sm font-medium ${createForm.branch_type === type.value ? 'text-accent' : 'text-text-primary'}`}>
+                          <p className={`text-sm font-medium ${createForm.branch_type === type.value ? 'text-primary' : 'text-text-primary'}`}>
                             {type.label}
                           </p>
                           <p className="text-xs text-text-secondary">{type.description}</p>
@@ -565,7 +565,7 @@ const BranchManagement: React.FC = () => {
                       <label
                         key={type.value}
                         className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                          editForm.branch_type === type.value ? 'border-accent bg-accent-50' : 'border-border hover:border-accent-300'
+                          editForm.branch_type === type.value ? 'border-primary bg-primary-50' : 'border-border hover:border-primary-300'
                         }`}
                       >
                         <input
@@ -577,7 +577,7 @@ const BranchManagement: React.FC = () => {
                           className="sr-only"
                         />
                         <div>
-                          <p className={`text-sm font-medium ${editForm.branch_type === type.value ? 'text-accent' : 'text-text-primary'}`}>
+                          <p className={`text-sm font-medium ${editForm.branch_type === type.value ? 'text-primary' : 'text-text-primary'}`}>
                             {type.label}
                           </p>
                         </div>

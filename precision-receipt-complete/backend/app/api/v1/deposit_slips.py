@@ -9,6 +9,7 @@ from typing import Optional
 from datetime import datetime
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.middleware.auth import get_current_user, get_current_active_user
 from app.models import User, DigitalDepositSlip, DepositSlipStatus, Branch, Customer, Receipt
 from app.services.drid_service import DRIDService
@@ -311,16 +312,16 @@ async def send_otp(
             detail=f"Cannot send OTP: deposit slip status is {slip.status.value}. Must be VERIFIED first."
         )
 
-    # Get customer phone
-    customer_phone = slip.customer_phone or slip.depositor_phone
-    if not customer_phone:
+    # OTP goes to depositor (person physically at the bank) for authorization
+    depositor_phone = slip.depositor_phone or slip.customer_phone
+    if not depositor_phone:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No phone number found for customer"
+            detail="No phone number found for depositor"
         )
 
-    # Send OTP
-    success, message = OTPService.send_otp(customer_phone, drid)
+    # Send OTP to depositor
+    success, message = OTPService.send_otp(depositor_phone, drid)
 
     if not success:
         raise HTTPException(
@@ -329,11 +330,11 @@ async def send_otp(
         )
 
     # Mask phone number for response
-    masked_phone = customer_phone[-4:].rjust(len(customer_phone), '*')
+    masked_phone = depositor_phone[-4:].rjust(len(depositor_phone), '*')
 
     return {
         "success": True,
-        "message": f"OTP sent to {masked_phone}",
+        "message": f"OTP sent to depositor at {masked_phone}",
         "drid": drid,
         "phone_masked": masked_phone
     }
@@ -347,9 +348,9 @@ async def verify_otp(
     db: Session = Depends(get_db)
 ):
     """
-    Verify OTP entered by customer
+    Verify OTP entered by depositor
 
-    Called by teller after customer provides the OTP received via SMS.
+    Called by teller after depositor provides the OTP received via SMS.
     """
     # Get deposit slip
     slip = DRIDService.get_deposit_slip_by_drid(db, drid)
@@ -360,16 +361,16 @@ async def verify_otp(
             detail="DRID not found"
         )
 
-    # Get customer phone
-    customer_phone = slip.customer_phone or slip.depositor_phone
-    if not customer_phone:
+    # OTP was sent to depositor's phone
+    depositor_phone = slip.depositor_phone or slip.customer_phone
+    if not depositor_phone:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No phone number found for customer"
+            detail="No phone number found for depositor"
         )
 
-    # Verify OTP
-    success, message = OTPService.verify_otp(customer_phone, drid, otp)
+    # Verify OTP (sent to depositor's phone)
+    success, message = OTPService.verify_otp(depositor_phone, drid, otp)
 
     return {
         "success": success,
@@ -416,13 +417,16 @@ async def teller_complete_deposit_slip(
         receipt = transaction.receipts[0]
         receipt_number = receipt.receipt_number
 
-    # Send notifications (WhatsApp & Email)
+    # Send notifications to BOTH account holder and depositor
     if transaction and receipt:
+        # Get the deposit slip for depositor info
+        slip_obj = DRIDService.get_deposit_slip_by_drid(db, drid)
+
+        # 1. Send to account holder (depositee)
         try:
-            # Get customer
             customer = db.query(Customer).filter(Customer.id == transaction.customer_id).first()
             if customer:
-                logger.info(f"Sending notifications for transaction {transaction.reference_number} to {customer.phone} / {customer.email}")
+                logger.info(f"Sending notifications to account holder: {customer.phone} / {customer.email}")
                 await NotificationService.send_transaction_notifications(
                     db=db,
                     transaction=transaction,
@@ -432,10 +436,37 @@ async def teller_complete_deposit_slip(
                     send_email=True,
                     send_sms=True
                 )
-                logger.info(f"Notifications sent for transaction {transaction.reference_number}")
         except Exception as e:
-            # Log error but don't fail the transaction
-            logger.error(f"Failed to send notifications: {str(e)}")
+            logger.error(f"Failed to send account holder notifications: {str(e)}")
+
+        # 2. Send to depositor (if different from account holder)
+        if slip_obj:
+            depositor_phone = slip_obj.depositor_phone
+            customer_phone = slip_obj.customer_phone
+            # Only send to depositor if they have a phone and it's different from account holder
+            if depositor_phone and depositor_phone != customer_phone:
+                try:
+                    logger.info(f"Sending notifications to depositor: {depositor_phone}")
+                    # WhatsApp to depositor
+                    if settings.WHATSAPP_ENABLED:
+                        await NotificationService.send_receipt_to_channel(
+                            db=db,
+                            transaction=transaction,
+                            receipt=receipt,
+                            channel="WHATSAPP",
+                            recipient=depositor_phone
+                        )
+                    # SMS to depositor
+                    if settings.SMS_ENABLED:
+                        await NotificationService.send_receipt_to_channel(
+                            db=db,
+                            transaction=transaction,
+                            receipt=receipt,
+                            channel="SMS",
+                            recipient=depositor_phone
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to send depositor notifications: {str(e)}")
 
     return DepositSlipCompleteResponse(
         success=True,

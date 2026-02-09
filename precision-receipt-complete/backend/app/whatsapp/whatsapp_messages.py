@@ -344,7 +344,9 @@ _Reply with option number (1-5)_
         customer_name: Optional[str],
         amount: Decimal,
         transaction_type: str = "Cash Deposit",
-        depositor_name: Optional[str] = None
+        depositor_name: Optional[str] = None,
+        depositor_cnic: Optional[str] = None,
+        depositor_phone: Optional[str] = None
     ) -> str:
         """Generate confirmation summary message"""
         masked_account = WhatsAppMessages.mask_account(account_number) if account_number else "N/A"
@@ -366,7 +368,15 @@ Please review your deposit details:
             summary += f"👤 *Account Holder:* {customer_name}\n"
 
         if depositor_name and depositor_name != customer_name:
-            summary += f"🚶 *Depositor:* {depositor_name}\n"
+            summary += f"""
+━━━━━━━━━━━━━━━━━━━━━
+🚶 *Depositor Details:*
+   *Name:* {depositor_name}
+"""
+            if depositor_cnic:
+                summary += f"   *CNIC:* {depositor_cnic}\n"
+            if depositor_phone:
+                summary += f"   *Phone:* {depositor_phone}\n"
 
         summary += f"""
 ╔════════════════════════╗

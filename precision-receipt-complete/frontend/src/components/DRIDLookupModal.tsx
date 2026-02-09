@@ -420,6 +420,12 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                         <p className="font-medium">{depositSlip.depositor_cnic}</p>
                       </div>
                     )}
+                    {depositSlip.depositor_phone && (
+                      <div>
+                        <span className="text-text-secondary">Phone:</span>
+                        <p className="font-medium">{depositSlip.depositor_phone}</p>
+                      </div>
+                    )}
                     {depositSlip.depositor_relationship && (
                       <div>
                         <span className="text-text-secondary">Relationship:</span>
@@ -528,7 +534,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                       type="checkbox"
                       checked={amountConfirmed}
                       onChange={(e) => setAmountConfirmed(e.target.checked)}
-                      className="w-5 h-5 rounded border-border text-accent focus:ring-accent"
+                      className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
                     />
                     <span className="text-sm">
                       Amount confirmed: <strong>{depositSlip.currency} {parseFloat(String(depositSlip.amount)).toLocaleString()}</strong>
@@ -540,7 +546,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                       type="checkbox"
                       checked={depositorVerified}
                       onChange={(e) => setDepositorVerified(e.target.checked)}
-                      className="w-5 h-5 rounded border-border text-accent focus:ring-accent"
+                      className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
                     />
                     <span className="text-sm">
                       Depositor identity verified (CNIC checked)
@@ -553,7 +559,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                         type="checkbox"
                         checked={instrumentVerified}
                         onChange={(e) => setInstrumentVerified(e.target.checked)}
-                        className="w-5 h-5 rounded border-border text-accent focus:ring-accent"
+                        className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
                       />
                       <span className="text-sm">
                         Instrument verified (Cheque/Pay Order details correct)
@@ -569,7 +575,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   Notes (Optional)
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent resize-y min-h-[60px]"
+                  className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[60px]"
                   placeholder="Any observations or notes"
                   value={verifyNotes}
                   onChange={(e) => setVerifyNotes(e.target.value)}
@@ -679,7 +685,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                     type="checkbox"
                     checked={authorizationCaptured}
                     onChange={(e) => setAuthorizationCaptured(e.target.checked)}
-                    className="w-5 h-5 rounded border-border text-accent focus:ring-accent"
+                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
                     disabled={!otpVerified}
                   />
                   <div>
@@ -699,7 +705,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   Teller Notes (Optional)
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent resize-y min-h-[60px]"
+                  className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[60px]"
                   placeholder="Any additional notes"
                   value={tellerNotes}
                   onChange={(e) => setTellerNotes(e.target.value)}

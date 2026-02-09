@@ -25,7 +25,7 @@ const TrendLineChart: React.FC<TrendLineChartProps> = ({ data, loading = false }
   if (loading) {
     return (
       <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -50,29 +50,29 @@ const TrendLineChart: React.FC<TrendLineChartProps> = ({ data, loading = false }
             bottom: 5,
           }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
           <XAxis
             dataKey="period_label"
-            tick={{ fontSize: 12, fill: '#475569' }}
-            tickLine={{ stroke: '#E5E7EB' }}
+            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+            tickLine={{ stroke: '#E0E0E0' }}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 12, fill: '#475569' }}
-            tickLine={{ stroke: '#E5E7EB' }}
+            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+            tickLine={{ stroke: '#E0E0E0' }}
             tickFormatter={(value) => value.toLocaleString()}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 12, fill: '#475569' }}
-            tickLine={{ stroke: '#E5E7EB' }}
+            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+            tickLine={{ stroke: '#E0E0E0' }}
             tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
           />
           <Tooltip
             contentStyle={{
               backgroundColor: '#FFFFFF',
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E0E0E0',
               borderRadius: '8px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             }}
@@ -89,9 +89,9 @@ const TrendLineChart: React.FC<TrendLineChartProps> = ({ data, loading = false }
             type="monotone"
             dataKey="transaction_count"
             name="Transactions"
-            stroke="#00A7FF"
+            stroke="#5F2585"
             strokeWidth={2}
-            dot={{ fill: '#00A7FF', strokeWidth: 2 }}
+            dot={{ fill: '#5F2585', strokeWidth: 2 }}
             activeDot={{ r: 6 }}
           />
           <Line
@@ -99,9 +99,9 @@ const TrendLineChart: React.FC<TrendLineChartProps> = ({ data, loading = false }
             type="monotone"
             dataKey="total_amount"
             name="Amount"
-            stroke="#0B1F3B"
+            stroke="#2A7A5F"
             strokeWidth={2}
-            dot={{ fill: '#0B1F3B', strokeWidth: 2 }}
+            dot={{ fill: '#2A7A5F', strokeWidth: 2 }}
             activeDot={{ r: 6 }}
           />
           <Line

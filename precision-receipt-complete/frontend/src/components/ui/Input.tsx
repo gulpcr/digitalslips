@@ -2,7 +2,7 @@
  * Input Component
  * Following Precision Receipt Design System
  * - Soft border
- * - Cyan focus ring
+ * - Purple focus ring
  * - Clear error messaging
  */
 
@@ -66,7 +66,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               'transition-all duration-200',
               
               // Focus
-              'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent',
+              'focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary',
               'focus:shadow-input-focus',
               
               // States
@@ -157,7 +157,7 @@ export const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
             'resize-y min-h-[100px]',
             
             // Focus
-            'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent',
+            'focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary',
             'focus:shadow-input-focus',
             
             // States

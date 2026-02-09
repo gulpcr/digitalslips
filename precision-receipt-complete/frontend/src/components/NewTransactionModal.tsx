@@ -379,12 +379,12 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       onClick={() => setTransactionType(type.value)}
                       className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
                         isSelected
-                          ? 'border-accent bg-accent-50'
-                          : 'border-border hover:border-accent-light'
+                          ? 'border-primary bg-primary-50'
+                          : 'border-border hover:border-primary-light'
                       }`}
                     >
-                      <Icon className={`w-6 h-6 ${isSelected ? 'text-accent' : type.color}`} />
-                      <span className={`text-xs font-medium ${isSelected ? 'text-accent' : 'text-text-primary'}`}>
+                      <Icon className={`w-6 h-6 ${isSelected ? 'text-primary' : type.color}`} />
+                      <span className={`text-xs font-medium ${isSelected ? 'text-primary' : 'text-text-primary'}`}>
                         {type.label}
                       </span>
                     </button>
@@ -428,7 +428,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                   </label>
                   {customerInfo && customerInfo.accounts.length > 0 ? (
                     <select
-                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
                       value={customerAccount}
                       onChange={(e) => setCustomerAccount(e.target.value)}
                     >
@@ -565,7 +565,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       Cheque Bank *
                     </label>
                     <select
-                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
                       value={chequeBank}
                       onChange={(e) => setChequeBank(e.target.value)}
                     >
@@ -674,7 +674,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       Bill Type *
                     </label>
                     <select
-                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
                       value={billType}
                       onChange={(e) => setBillType(e.target.value)}
                     >
@@ -756,7 +756,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       Beneficiary Bank *
                     </label>
                     <select
-                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
                       value={beneficiaryBank}
                       onChange={(e) => setBeneficiaryBank(e.target.value)}
                     >

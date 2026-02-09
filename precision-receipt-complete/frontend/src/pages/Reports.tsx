@@ -185,8 +185,8 @@ const Reports: React.FC = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-accent text-white'
-                    : 'text-text-secondary hover:text-accent hover:bg-accent-50'
+                    ? 'bg-primary text-white'
+                    : 'text-text-secondary hover:text-primary hover:bg-primary-50'
                 }`}
               >
                 {tab.icon}

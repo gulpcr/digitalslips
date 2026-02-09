@@ -335,12 +335,17 @@ _Thank you for banking with Meezan Bank._
                 return True
 
             # Format phone number for WhatsApp
-            phone = notification.recipient
-            if not phone.startswith('+'):
+            phone = notification.recipient.strip()
+            if phone.startswith('whatsapp:'):
+                phone = phone[9:]
+            if phone.startswith('+'):
+                pass  # Already international format
+            elif phone.startswith('92'):
                 phone = f"+{phone}"
-            if not phone.startswith('+92'):
-                # Assume Pakistan number if no country code
-                phone = f"+92{phone.lstrip('0')}"
+            elif phone.startswith('0'):
+                phone = f"+92{phone[1:]}"
+            else:
+                phone = f"+92{phone}"
 
             # Send via Twilio WhatsApp
             # Note: Twilio WhatsApp requires the number to be prefixed with 'whatsapp:'
@@ -387,11 +392,15 @@ _Thank you for banking with Meezan Bank._
                 return True
 
             # Format phone number
-            phone = notification.recipient
-            if not phone.startswith('+'):
+            phone = notification.recipient.strip()
+            if phone.startswith('+'):
+                pass  # Already international format
+            elif phone.startswith('92'):
                 phone = f"+{phone}"
-            if not phone.startswith('+92'):
-                phone = f"+92{phone.lstrip('0')}"
+            elif phone.startswith('0'):
+                phone = f"+92{phone[1:]}"
+            else:
+                phone = f"+92{phone}"
 
             # Use SMS-specific number if available, otherwise fall back to default
             sms_from = settings.TWILIO_SMS_PHONE_NUMBER or settings.TWILIO_PHONE_NUMBER

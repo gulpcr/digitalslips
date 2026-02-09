@@ -77,7 +77,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
               type="date"
               value={filters.start_date?.split('T')[0] || ''}
               onChange={(e) => handleChange('start_date', e.target.value ? `${e.target.value}T00:00:00` : '')}
-              className="w-full pl-10 pr-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+              className="w-full pl-10 pr-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             />
           </div>
         </div>
@@ -92,7 +92,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
               type="date"
               value={filters.end_date?.split('T')[0] || ''}
               onChange={(e) => handleChange('end_date', e.target.value ? `${e.target.value}T23:59:59` : '')}
-              className="w-full pl-10 pr-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+              className="w-full pl-10 pr-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             />
           </div>
         </div>
@@ -105,7 +105,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
           <select
             value={filters.transaction_type || ''}
             onChange={(e) => handleChange('transaction_type', e.target.value)}
-            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm bg-white"
+            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
           >
             {TRANSACTION_TYPES.map((type) => (
               <option key={type.value} value={type.value}>
@@ -123,7 +123,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
           <select
             value={filters.status || ''}
             onChange={(e) => handleChange('status', e.target.value)}
-            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm bg-white"
+            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
           >
             {STATUSES.map((status) => (
               <option key={status.value} value={status.value}>
@@ -142,7 +142,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
             <select
               value={filters.branch_id || ''}
               onChange={(e) => handleChange('branch_id', e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm bg-white"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
             >
               <option value="">All Branches</option>
               {branches.map((branch) => (
@@ -163,7 +163,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
             <select
               value={filters.user_id || ''}
               onChange={(e) => handleChange('user_id', e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm bg-white"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
             >
               <option value="">All Users</option>
               {users.map((user) => (

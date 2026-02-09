@@ -183,7 +183,7 @@ const DemoSetup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary to-primary-dark p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-700 to-primary p-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8 pt-8">
@@ -402,8 +402,8 @@ const DemoSetup: React.FC = () => {
         <Card padding="lg" className="mt-6">
           <h2 className="text-xl font-bold text-text-primary mb-4">Login Credentials</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-accent-50 border border-accent rounded-lg">
-              <h3 className="font-semibold text-accent mb-2">Admin User</h3>
+            <div className="p-4 bg-primary-50 border border-primary rounded-lg">
+              <h3 className="font-semibold text-primary mb-2">Admin User</h3>
               <p className="text-sm"><span className="text-text-secondary">Username:</span> <code className="bg-white px-2 py-1 rounded">admin</code></p>
               <p className="text-sm mt-1"><span className="text-text-secondary">Password:</span> <code className="bg-white px-2 py-1 rounded">Admin@123456</code></p>
             </div>

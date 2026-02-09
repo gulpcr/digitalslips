@@ -241,10 +241,10 @@ const ChequeScannerModal: React.FC<ChequeScannerModalProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={startCamera}
-                  className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-lg hover:border-accent hover:bg-accent-50 transition-all"
+                  className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-lg hover:border-primary hover:bg-primary-50 transition-all"
                 >
-                  <div className="w-12 h-12 bg-accent-100 rounded-full flex items-center justify-center">
-                    <FiCamera className="w-6 h-6 text-accent" />
+                  <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
+                    <FiCamera className="w-6 h-6 text-primary" />
                   </div>
                   <span className="font-medium text-text-primary">Use Camera</span>
                   <span className="text-xs text-text-secondary text-center">
@@ -254,10 +254,10 @@ const ChequeScannerModal: React.FC<ChequeScannerModalProps> = ({
 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-lg hover:border-accent hover:bg-accent-50 transition-all"
+                  className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-lg hover:border-primary hover:bg-primary-50 transition-all"
                 >
-                  <div className="w-12 h-12 bg-accent-100 rounded-full flex items-center justify-center">
-                    <FiUpload className="w-6 h-6 text-accent" />
+                  <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
+                    <FiUpload className="w-6 h-6 text-primary" />
                   </div>
                   <span className="font-medium text-text-primary">Upload Image</span>
                   <span className="text-xs text-text-secondary text-center">

@@ -4,9 +4,10 @@
  */
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
+import { useAuthStore } from './store/authStore';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -29,6 +30,14 @@ const queryClient = new QueryClient({
   },
 });
 
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuthStore();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -36,8 +45,8 @@ function App() {
         <div className="min-h-screen bg-background-light">
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             {/* Customer-facing deposit slip initiation */}
             <Route path="/deposit" element={<CustomerDeposit />} />
             <Route path="/customer/deposit" element={<CustomerDeposit />} />
@@ -45,16 +54,16 @@ function App() {
             <Route path="/demo" element={<DemoSetup />} />
             <Route path="/setup" element={<DemoSetup />} />
             {/* Admin pages */}
-            <Route path="/admin/users" element={<UserManagement />} />
-            <Route path="/admin/branches" element={<BranchManagement />} />
+            <Route path="/admin/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+            <Route path="/admin/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />
             {/* Reports */}
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             {/* Public receipt verification page */}
             <Route path="/verify/:receiptNumber" element={<ReceiptVerification />} />
           </Routes>
         </div>
       </Router>
-      
+
       {/* Toast Notifications */}
       <Toaster
         position="top-right"

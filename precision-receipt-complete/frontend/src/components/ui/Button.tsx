@@ -1,8 +1,8 @@
 /**
  * Button Component
  * Following Precision Receipt Design System
- * - 8px radius
- * - Strong primary CTA in Cyan
+ * - 6px radius
+ * - Strong primary CTA in Purple
  * - Hover darken slightly
  */
 
@@ -39,7 +39,7 @@ export const Button: React.FC<ButtonProps> = ({
     'inline-flex items-center justify-center gap-2',
     'font-medium transition-all duration-200',
     'rounded-button',  // 8px radius
-    'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+    'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
     'disabled:opacity-50 disabled:cursor-not-allowed',
     
     // Full width
@@ -48,18 +48,18 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variantStyles = {
     primary: clsx(
-      'bg-accent text-white',
-      'hover:bg-accent-600 active:bg-accent-700',
-      'shadow-sm hover:shadow-md',
-    ),
-    secondary: clsx(
       'bg-primary text-white',
       'hover:bg-primary-600 active:bg-primary-700',
       'shadow-sm hover:shadow-md',
     ),
+    secondary: clsx(
+      'bg-accent text-white',
+      'hover:bg-accent-600 active:bg-accent-700',
+      'shadow-sm hover:shadow-md',
+    ),
     outline: clsx(
-      'border-2 border-accent text-accent bg-transparent',
-      'hover:bg-accent-50 active:bg-accent-100',
+      'border-2 border-primary text-primary bg-transparent',
+      'hover:bg-primary-50 active:bg-primary-100',
     ),
     ghost: clsx(
       'text-primary bg-transparent',

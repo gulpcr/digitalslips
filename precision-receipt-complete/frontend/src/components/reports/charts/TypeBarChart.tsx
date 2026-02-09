@@ -30,8 +30,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  CASH_DEPOSIT: '#00A7FF',
-  CHEQUE_DEPOSIT: '#0B1F3B',
+  CASH_DEPOSIT: '#5F2585',
+  CHEQUE_DEPOSIT: '#2A7A5F',
   PAY_ORDER: '#16A34A',
   BILL_PAYMENT: '#F59E0B',
   FUND_TRANSFER: '#8B5CF6',
@@ -41,7 +41,7 @@ const TypeBarChart: React.FC<TypeBarChartProps> = ({ data, loading = false }) =>
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -73,31 +73,31 @@ const TypeBarChart: React.FC<TypeBarChartProps> = ({ data, loading = false }) =>
             bottom: 5,
           }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
           <XAxis
             dataKey="type"
-            tick={{ fontSize: 11, fill: '#475569' }}
-            tickLine={{ stroke: '#E5E7EB' }}
+            tick={{ fontSize: 11, fill: '#6B6B6B' }}
+            tickLine={{ stroke: '#E0E0E0' }}
             angle={-15}
             textAnchor="end"
             height={60}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 12, fill: '#475569' }}
-            tickLine={{ stroke: '#E5E7EB' }}
+            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+            tickLine={{ stroke: '#E0E0E0' }}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 12, fill: '#475569' }}
-            tickLine={{ stroke: '#E5E7EB' }}
+            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+            tickLine={{ stroke: '#E0E0E0' }}
             tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
           />
           <Tooltip
             contentStyle={{
               backgroundColor: '#FFFFFF',
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E0E0E0',
               borderRadius: '8px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             }}
@@ -113,14 +113,14 @@ const TypeBarChart: React.FC<TypeBarChartProps> = ({ data, loading = false }) =>
             yAxisId="left"
             dataKey="count"
             name="Count"
-            fill="#00A7FF"
+            fill="#5F2585"
             radius={[4, 4, 0, 0]}
           />
           <Bar
             yAxisId="right"
             dataKey="amount"
             name="Amount"
-            fill="#0B1F3B"
+            fill="#2A7A5F"
             radius={[4, 4, 0, 0]}
           />
         </BarChart>

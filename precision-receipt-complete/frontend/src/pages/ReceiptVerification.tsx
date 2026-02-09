@@ -256,7 +256,7 @@ const ReceiptVerification: React.FC = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading receipt...</p>
         </div>
       </div>
@@ -266,7 +266,7 @@ const ReceiptVerification: React.FC = () => {
   if (error || !receipt) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
           <FiXCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Receipt Not Found</h1>
           <p className="text-gray-600">{error || 'The receipt you are looking for does not exist.'}</p>
@@ -279,7 +279,7 @@ const ReceiptVerification: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-green-700 to-green-800 rounded-t-2xl p-6 text-white text-center">
+        <div className="bg-gradient-to-r from-accent to-accent-700 rounded-t-lg p-6 text-white text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
             <BsBuilding className="w-8 h-8" />
             <h1 className="text-2xl font-bold">MEEZAN BANK</h1>
@@ -288,12 +288,12 @@ const ReceiptVerification: React.FC = () => {
         </div>
 
         {/* Receipt Content */}
-        <div className="bg-white shadow-xl rounded-b-2xl overflow-hidden">
+        <div className="bg-white shadow-xl rounded-b-lg overflow-hidden">
           {/* Verification Status */}
           <div className={`p-4 flex items-center justify-center gap-2 ${
             verified || receipt.is_verified
               ? 'bg-green-50 text-green-700'
-              : 'bg-blue-50 text-blue-700'
+              : 'bg-primary-50 text-primary'
           }`}>
             {verified || receipt.is_verified ? (
               <>
@@ -312,7 +312,7 @@ const ReceiptVerification: React.FC = () => {
           {/* Amount */}
           <div className="text-center py-6 border-b">
             <p className="text-gray-500 text-sm mb-1">Transaction Amount</p>
-            <p className="text-4xl font-bold text-green-700">
+            <p className="text-4xl font-bold text-accent">
               {formatAmount(receipt.amount, receipt.currency)}
             </p>
             {parseFloat(receipt.fee) > 0 && (
@@ -400,9 +400,9 @@ const ReceiptVerification: React.FC = () => {
           </div>
 
           {/* Digital Signature Section */}
-          <div className="border-t p-6 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="border-t p-6 bg-gradient-to-r from-primary-50 to-primary-100">
             <div className="flex items-center gap-2 mb-4">
-              <FiShield className="w-6 h-6 text-blue-600" />
+              <FiShield className="w-6 h-6 text-primary" />
               <h3 className="text-lg font-semibold text-gray-800">Digital Signature (SBP Compliant)</h3>
             </div>
 
@@ -434,7 +434,7 @@ const ReceiptVerification: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-blue-600">
+                    <div className="flex items-center gap-2 text-primary">
                       <FiCheckCircle className="w-5 h-5" />
                       <span className="text-sm font-medium">This receipt is digitally signed</span>
                     </div>
@@ -448,7 +448,7 @@ const ReceiptVerification: React.FC = () => {
                     <button
                       onClick={handleVerifySignature}
                       disabled={verifyingSignature}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full bg-primary hover:bg-primary-600 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {verifyingSignature ? (
                         <>
@@ -496,7 +496,7 @@ const ReceiptVerification: React.FC = () => {
               <button
                 onClick={handleVerify}
                 disabled={verifying}
-                className="w-full bg-green-700 hover:bg-green-800 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-accent hover:bg-accent-600 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {verifying ? (
                   <>

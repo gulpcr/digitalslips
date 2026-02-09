@@ -662,7 +662,9 @@ _Reply with the option number_"""
                         customer_name=session.data.get('customer_name'),
                         amount=session.data.get('amount'),
                         transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
-                        depositor_name=session.data.get('depositor_name')
+                        depositor_name=session.data.get('depositor_name'),
+                        depositor_cnic=session.data.get('depositor_cnic'),
+                        depositor_phone=session.data.get('depositor_phone')
                     )
                 else:
                     session.state = SessionState.AMOUNT_INPUT
@@ -698,7 +700,9 @@ _Reply with the option number_"""
             customer_name=session.data.get('customer_name'),
             amount=amount,
             transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
-            depositor_name=session.data.get('depositor_name')
+            depositor_name=session.data.get('depositor_name'),
+            depositor_cnic=session.data.get('depositor_cnic'),
+            depositor_phone=session.data.get('depositor_phone')
         )
 
     # ============================================
@@ -726,7 +730,9 @@ _Reply with the option number_"""
                 customer_name=session.data.get('customer_name'),
                 amount=session.data.get('amount'),
                 transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
-                depositor_name=session.data.get('depositor_name')
+                depositor_name=session.data.get('depositor_name'),
+                depositor_cnic=session.data.get('depositor_cnic'),
+                depositor_phone=session.data.get('depositor_phone')
             )
 
     async def _create_deposit_slip(self, session: UserSession) -> str:
@@ -821,38 +827,18 @@ _Reply with the option number_"""
         cnic = self.messages.format_cnic(original_message)
         session.data['depositor_cnic'] = cnic
 
-        # Try to find customer by CNIC
+        # Try to find depositor by CNIC to auto-fill their info
         customer = self.db.query(Customer).filter(Customer.cnic == cnic).first()
 
         if customer:
-            # Found customer - use their info
-            session.data['customer_id'] = str(customer.id)
-            session.data['customer_cnic'] = customer.cnic
-            session.data['customer_name'] = customer.full_name
-            session.data['customer_phone'] = customer.phone
-            session.data['depositor_name'] = customer.full_name
-            session.data['depositor_phone'] = customer.phone
+            # Found in DB - pre-fill name, but still ask to confirm/change
+            session.data['depositor_name_prefill'] = customer.full_name
+            session.data['depositor_phone_prefill'] = customer.phone
 
-            # Get their accounts
-            accounts = self.db.query(Account).filter(
-                Account.customer_id == customer.id,
-                Account.account_status == AccountStatus.ACTIVE
-            ).all()
-
-            if accounts:
-                session.data['accounts'] = [
-                    {
-                        'id': str(acc.id),
-                        'account_number': acc.account_number,
-                        'account_type': acc.account_type.value
-                    }
-                    for acc in accounts
-                ]
-                session.state = SessionState.ACCOUNT_SELECTION
-                return f"*Customer Found*\n\nWelcome {customer.full_name}!\n\n" + self.messages.account_selection(session.data['accounts'])
-
-        # Customer not found - continue as true walk-in
+        # Always ask for name (with pre-fill hint if found in DB)
         session.state = SessionState.WALKIN_NAME
+        if customer:
+            return f"*CNIC Verified!*\n\nWe found: *{customer.full_name}*\n\n" + self.messages.WALKIN_NAME_REQUEST + f"\n\n_Send *ok* to use: {customer.full_name}_"
         return self.messages.WALKIN_NAME_REQUEST
 
     async def _handle_walkin_name(
@@ -863,12 +849,19 @@ _Reply with the option number_"""
         media_url: Optional[str]
     ) -> str:
         """Handle walk-in name input"""
-        name = original_message.strip()
-        if len(name) < 3:
-            return "Please enter a valid name (at least 3 characters):"
+        # Allow "ok" to accept pre-filled name from DB
+        if message == 'ok' and session.data.get('depositor_name_prefill'):
+            session.data['depositor_name'] = session.data['depositor_name_prefill']
+        else:
+            name = original_message.strip()
+            if len(name) < 3:
+                return "Please enter a valid name (at least 3 characters):"
+            session.data['depositor_name'] = name
 
-        session.data['depositor_name'] = name
         session.state = SessionState.WALKIN_PHONE
+        prefill_phone = session.data.get('depositor_phone_prefill')
+        if prefill_phone:
+            return self.messages.WALKIN_PHONE_REQUEST + f"\n\n_Send *ok* to use: {prefill_phone}_"
         return self.messages.WALKIN_PHONE_REQUEST
 
     async def _handle_walkin_phone(
@@ -879,11 +872,15 @@ _Reply with the option number_"""
         media_url: Optional[str]
     ) -> str:
         """Handle walk-in phone input"""
-        if not self.messages.validate_phone(original_message):
-            return self.messages.INVALID_PHONE
+        # Allow "ok" to accept pre-filled phone from DB
+        if message == 'ok' and session.data.get('depositor_phone_prefill'):
+            session.data['depositor_phone'] = session.data['depositor_phone_prefill']
+        else:
+            if not self.messages.validate_phone(original_message):
+                return self.messages.INVALID_PHONE
+            phone = self.messages.clean_phone_number(original_message)
+            session.data['depositor_phone'] = phone
 
-        phone = self.messages.clean_phone_number(original_message)
-        session.data['depositor_phone'] = phone
         session.state = SessionState.WALKIN_TARGET_ACCOUNT
         return self.messages.WALKIN_TARGET_ACCOUNT_REQUEST
 
@@ -931,7 +928,9 @@ _Reply with the option number_"""
                 customer_name=session.data.get('customer_name'),
                 amount=session.data.get('amount'),
                 transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
-                depositor_name=session.data.get('depositor_name')
+                depositor_name=session.data.get('depositor_name'),
+                depositor_cnic=session.data.get('depositor_cnic'),
+                depositor_phone=session.data.get('depositor_phone')
             )
         else:
             # Move to amount input for cash deposits

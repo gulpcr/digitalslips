@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiDollarSign, FiFileText, FiTrendingUp, FiSearch, FiRefreshCw, FiHome } from 'react-icons/fi';
+import { FiDollarSign, FiFileText, FiTrendingUp, FiCheckCircle, FiSearch, FiRefreshCw, FiHome, FiPlus } from 'react-icons/fi';
 import AdminLayout from '../components/layout/AdminLayout';
 import Button from '../components/ui/Button';
 import Card, { CardHeader, CardBody, CardFooter } from '../components/ui/Card';
@@ -161,25 +161,33 @@ const Dashboard: React.FC = () => {
       title: 'Total Transactions',
       value: stats.totalTransactions.toString(),
       icon: FiFileText,
-      color: 'accent',
+      accentColor: 'border-l-primary',
+      iconBg: 'bg-primary-50',
+      iconColor: 'text-primary',
     },
     {
       title: 'Total Amount',
       value: `PKR ${stats.totalAmount.toLocaleString()}`,
       icon: FiDollarSign,
-      color: 'success',
+      accentColor: 'border-l-accent',
+      iconBg: 'bg-accent-50',
+      iconColor: 'text-accent',
     },
     {
       title: 'Completed',
       value: stats.completedCount.toString(),
-      icon: FiTrendingUp,
-      color: 'success',
+      icon: FiCheckCircle,
+      accentColor: 'border-l-success',
+      iconBg: 'bg-success-50',
+      iconColor: 'text-success',
     },
     {
       title: 'Success Rate',
       value: `${stats.successRate.toFixed(1)}%`,
       icon: FiTrendingUp,
-      color: 'success',
+      accentColor: 'border-l-gold',
+      iconBg: 'bg-gold-50',
+      iconColor: 'text-gold-700',
     },
   ];
 
@@ -191,24 +199,27 @@ const Dashboard: React.FC = () => {
     >
       <div className="space-y-6">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {statCards.map((stat, index) => (
-            <Card key={index} hover shadow="md">
+            <div
+              key={index}
+              className={`bg-white rounded-lg shadow-card hover:shadow-card-hover transition-all duration-200 border-l-4 ${stat.accentColor} p-5`}
+            >
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-text-secondary font-medium">{stat.title}</p>
-                  <h3 className="text-2xl font-bold text-text-primary mt-2">{stat.value}</h3>
+                  <h3 className="text-2xl font-bold text-text-primary mt-1.5">{stat.value}</h3>
                 </div>
-                <div className="p-3 bg-accent-50 rounded-lg">
-                  <stat.icon className="w-6 h-6 text-accent" />
+                <div className={`p-2.5 ${stat.iconBg} rounded-lg`}>
+                  <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
                 </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
 
-        {/* Search & Filters */}
-        <Card className="mb-6">
+        {/* Search & Actions */}
+        <Card bordered>
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="flex-1">
               <Input
@@ -219,28 +230,33 @@ const Dashboard: React.FC = () => {
                 fullWidth
               />
             </div>
-            <Button
-              variant="outline"
-              leftIcon={<FiRefreshCw />}
-              onClick={() => loadTransactions(currentPage, searchQuery)}
-            >
-              Refresh
-            </Button>
-            <Button
-              variant="accent"
-              onClick={() => setIsDRIDModalOpen(true)}
-              className="!bg-accent !text-white"
-            >
-              DRID Lookup
-            </Button>
-            <Button variant="primary" onClick={() => setIsNewTxnModalOpen(true)}>
-              New Transaction
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                leftIcon={<FiRefreshCw />}
+                onClick={() => loadTransactions(currentPage, searchQuery)}
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setIsDRIDModalOpen(true)}
+              >
+                DRID Lookup
+              </Button>
+              <Button
+                variant="primary"
+                leftIcon={<FiPlus />}
+                onClick={() => setIsNewTxnModalOpen(true)}
+              >
+                New Transaction
+              </Button>
+            </div>
           </div>
         </Card>
 
         {/* Recent Transactions */}
-        <Card>
+        <Card bordered>
           <CardHeader
             title="Recent Transactions"
             subtitle={loading ? 'Loading...' : `${totalCount} transactions`}
@@ -248,92 +264,97 @@ const Dashboard: React.FC = () => {
 
           <CardBody>
             {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto"></div>
-                <p className="mt-4 text-text-secondary">Loading transactions...</p>
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-text-secondary text-sm">Loading transactions...</p>
               </div>
             ) : transactions.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary">
-                {searchQuery
-                  ? 'No transactions found matching your search.'
-                  : 'No transactions found. Create your first transaction!'}
+              <div className="text-center py-12 text-text-secondary">
+                <FiFileText className="w-12 h-12 mx-auto text-border mb-3" />
+                <p className="font-medium">
+                  {searchQuery
+                    ? 'No transactions found matching your search.'
+                    : 'No transactions found. Create your first transaction!'}
+                </p>
               </div>
             ) : (
-              <Table striped hoverable>
-                <Table.Head>
-                  <Table.Row>
-                    <Table.Cell header>Reference</Table.Cell>
-                    <Table.Cell header>Customer</Table.Cell>
-                    <Table.Cell header>Type</Table.Cell>
-                    <Table.Cell header>Amount</Table.Cell>
-                    <Table.Cell header>Status</Table.Cell>
-                    <Table.Cell header>Date/Time</Table.Cell>
-                    <Table.Cell header>Actions</Table.Cell>
-                  </Table.Row>
-                </Table.Head>
-                <Table.Body>
-                  {transactions.map((txn) => (
-                    <Table.Row key={txn.id}>
-                      <Table.Cell>
-                        <span className="font-medium text-primary">{txn.reference_number}</span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div>
-                          <p className="font-medium">{txn.customer_name}</p>
-                          <p className="text-xs text-text-secondary">{txn.customer_cnic}</p>
-                        </div>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div>
-                          <span className="text-text-primary font-medium">
-                            {txn.transaction_type.replace('_', ' ')}
-                          </span>
-                          {getTransactionTypeInfo(txn) && (
-                            <p className="text-xs text-text-secondary mt-0.5">
-                              {getTransactionTypeInfo(txn)}
-                            </p>
-                          )}
-                        </div>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span className="font-semibold">
-                          {txn.currency} {parseFloat(String(txn.amount)).toLocaleString()}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-medium rounded border ${getStatusColor(txn.status)}`}
-                        >
-                          {txn.status}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span className="text-sm text-text-secondary">
-                          {format(new Date(txn.created_at), 'MMM dd, yyyy HH:mm')}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewTransaction(txn.id)}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewReceipt(txn.id)}
-                          >
-                            Receipt
-                          </Button>
-                        </div>
-                      </Table.Cell>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <Table striped hoverable>
+                  <Table.Head>
+                    <Table.Row>
+                      <Table.Cell header>Reference</Table.Cell>
+                      <Table.Cell header>Customer</Table.Cell>
+                      <Table.Cell header>Type</Table.Cell>
+                      <Table.Cell header>Amount</Table.Cell>
+                      <Table.Cell header>Status</Table.Cell>
+                      <Table.Cell header>Date/Time</Table.Cell>
+                      <Table.Cell header>Actions</Table.Cell>
                     </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table>
+                  </Table.Head>
+                  <Table.Body>
+                    {transactions.map((txn) => (
+                      <Table.Row key={txn.id}>
+                        <Table.Cell>
+                          <span className="font-semibold text-primary text-sm">{txn.reference_number}</span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div>
+                            <p className="font-medium text-sm">{txn.customer_name}</p>
+                            <p className="text-xs text-text-secondary">{txn.customer_cnic}</p>
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div>
+                            <span className="text-text-primary font-medium text-sm">
+                              {txn.transaction_type.replace('_', ' ')}
+                            </span>
+                            {getTransactionTypeInfo(txn) && (
+                              <p className="text-xs text-text-secondary mt-0.5">
+                                {getTransactionTypeInfo(txn)}
+                              </p>
+                            )}
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <span className="font-semibold text-sm">
+                            {txn.currency} {parseFloat(String(txn.amount)).toLocaleString()}
+                          </span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <span
+                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full border ${getStatusColor(txn.status)}`}
+                          >
+                            {txn.status}
+                          </span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <span className="text-sm text-text-secondary">
+                            {format(new Date(txn.created_at), 'MMM dd, yyyy HH:mm')}
+                          </span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div className="flex gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewTransaction(txn.id)}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewReceipt(txn.id)}
+                            >
+                              Receipt
+                            </Button>
+                          </div>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table>
+              </div>
             )}
           </CardBody>
 

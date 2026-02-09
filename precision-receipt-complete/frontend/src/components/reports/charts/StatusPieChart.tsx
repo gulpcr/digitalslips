@@ -43,7 +43,7 @@ const StatusPieChart: React.FC<StatusPieChartProps> = ({ data, loading = false }
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -123,7 +123,7 @@ const StatusPieChart: React.FC<StatusPieChartProps> = ({ data, loading = false }
           <Tooltip
             contentStyle={{
               backgroundColor: '#FFFFFF',
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E0E0E0',
               borderRadius: '8px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             }}

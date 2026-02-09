@@ -67,13 +67,20 @@ export const TableHead: React.FC<TableHeadProps> = ({
   return (
     <thead
       className={clsx(
-        'bg-primary text-white',
+        'bg-gradient-to-r from-primary-700 to-primary text-white',
         stickyHeader && 'sticky top-0 z-10',
         className
       )}
       {...props}
     >
-      {children}
+      {React.Children.map(children, (child) => {
+        if (React.isValidElement(child)) {
+          return React.cloneElement(child as React.ReactElement<any>, {
+            hoverable: false,
+          });
+        }
+        return child;
+      })}
     </thead>
   );
 };
@@ -124,7 +131,7 @@ export const TableRow: React.FC<TableRowProps> = ({
       className={clsx(
         'transition-colors duration-150',
         striped && 'bg-background-light',
-        hoverable && 'hover:bg-accent-50',
+        hoverable && 'hover:bg-primary-50',
         className
       )}
       {...props}
@@ -152,7 +159,7 @@ export const TableCell: React.FC<TableCellProps> = ({
       className={clsx(
         'px-4 py-3',
         header
-          ? 'font-semibold text-white text-left'
+          ? 'font-semibold text-white text-left text-xs uppercase tracking-wider'
           : 'text-text-primary',
         className
       )}

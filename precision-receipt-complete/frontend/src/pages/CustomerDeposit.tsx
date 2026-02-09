@@ -286,7 +286,7 @@ const CustomerDeposit: React.FC = () => {
   // Show result page after successful creation
   if (result) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-700 to-primary flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-success rounded-full mb-4">
@@ -369,13 +369,11 @@ const CustomerDeposit: React.FC = () => {
   const typeConfig = getSelectedTypeConfig();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary to-primary-dark py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-700 to-primary py-8 px-4">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent rounded-full mb-4">
-            <span className="text-2xl font-bold text-white">PR</span>
-          </div>
+          <img src="/assets/meezan-logo.png" alt="Meezan Bank" className="h-16 w-auto mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-white">Digital Deposit Slip</h1>
           <p className="text-gray-300 mt-2">Create your deposit slip online before visiting the branch</p>
         </div>
@@ -399,12 +397,12 @@ const CustomerDeposit: React.FC = () => {
                       onClick={() => setTransactionType(type.value)}
                       className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
                         isSelected
-                          ? 'border-accent bg-accent-50'
-                          : 'border-border hover:border-accent-light bg-white'
+                          ? 'border-primary bg-primary-50'
+                          : 'border-border hover:border-primary-200 bg-white'
                       }`}
                     >
-                      <Icon className={`w-6 h-6 ${isSelected ? 'text-accent' : type.color}`} />
-                      <span className={`text-xs font-medium text-center ${isSelected ? 'text-accent' : 'text-text-primary'}`}>
+                      <Icon className={`w-6 h-6 ${isSelected ? 'text-primary' : type.color}`} />
+                      <span className={`text-xs font-medium text-center ${isSelected ? 'text-primary' : 'text-text-primary'}`}>
                         {type.label}
                       </span>
                     </button>
@@ -470,7 +468,7 @@ const CustomerDeposit: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-text-primary mb-1">Who will deposit?</label>
                   <select
-                    className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     value={depositorRelationship}
                     onChange={(e) => setDepositorRelationship(e.target.value)}
                   >
@@ -542,7 +540,7 @@ const CustomerDeposit: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">Bank Name *</label>
-                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                       value={chequeBank} onChange={(e) => setChequeBank(e.target.value)}>
                       <option value="">Select bank</option>
                       {BANKS.map((bank) => (<option key={bank} value={bank}>{bank}</option>))}
@@ -585,7 +583,7 @@ const CustomerDeposit: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">Signature Status</label>
-                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                       value={chequeSignatureStatus} onChange={(e) => setChequeSignatureStatus(e.target.value)}>
                       <option value="">Not verified</option>
                       <option value="present">Signature Present</option>
@@ -637,7 +635,7 @@ const CustomerDeposit: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">Bill Type *</label>
-                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                       value={billType} onChange={(e) => setBillType(e.target.value)}>
                       <option value="">Select bill type</option>
                       {BILL_TYPES.map((type) => (<option key={type.value} value={type.value}>{type.label}</option>))}
@@ -683,7 +681,7 @@ const CustomerDeposit: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">Beneficiary Bank *</label>
-                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    <select className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                       value={beneficiaryBank} onChange={(e) => setBeneficiaryBank(e.target.value)}>
                       <option value="">Select bank</option>
                       {BANKS.map((bank) => (<option key={bank} value={bank}>{bank}</option>))}
@@ -707,7 +705,7 @@ const CustomerDeposit: React.FC = () => {
             <div className="mb-6">
               <label className="block text-sm font-medium text-text-primary mb-1">Narration (Optional)</label>
               <textarea
-                className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-accent resize-y min-h-[80px]"
+                className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[80px]"
                 placeholder="Purpose of transaction"
                 value={narration}
                 onChange={(e) => setNarration(e.target.value)}
