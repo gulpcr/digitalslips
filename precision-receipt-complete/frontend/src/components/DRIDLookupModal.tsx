@@ -614,10 +614,10 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
               </div>
 
               {/* OTP Verification */}
-              <div className="mb-6 p-4 border border-border rounded-lg">
-                <h3 className="font-semibold text-text-primary mb-3">OTP Verification</h3>
+              <div className="mb-6 p-4 border border-border rounded-lg bg-gray-50">
+                <h3 className="font-semibold text-text-secondary mb-3">OTP Verification (Optional - Disabled)</h3>
                 <p className="text-sm text-text-secondary mb-4">
-                  Send OTP to customer's registered mobile number for transaction authorization
+                  OTP verification is currently disabled for testing. You can complete transactions without OTP.
                   {maskedPhone && <span className="font-medium"> ({maskedPhone})</span>}
                 </p>
 
@@ -680,13 +680,12 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
               {/* Authorization */}
               <div className="mb-4">
                 <h3 className="font-semibold text-text-primary mb-3">Customer Authorization</h3>
-                <label className={`flex items-center gap-3 cursor-pointer p-4 border rounded-lg ${!otpVerified ? 'border-border opacity-50' : 'border-border'}`}>
+                <label className="flex items-center gap-3 cursor-pointer p-4 border rounded-lg border-border">
                   <input
                     type="checkbox"
                     checked={authorizationCaptured}
                     onChange={(e) => setAuthorizationCaptured(e.target.checked)}
                     className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
-                    disabled={!otpVerified}
                   />
                   <div>
                     <span className="text-sm font-medium">
@@ -722,7 +721,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   fullWidth
                   onClick={handleComplete}
                   loading={loading}
-                  disabled={!authorizationCaptured || !otpVerified}
+                  disabled={!authorizationCaptured}
                 >
                   Complete Transaction
                 </Button>
