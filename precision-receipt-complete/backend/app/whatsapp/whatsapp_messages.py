@@ -86,8 +86,11 @@ Select deposit type:
 2️⃣  📄  *Cheque Deposit*
       _Deposit a cheque_
 
+3️⃣  💳  *Pay Order / Demand Draft*
+      _Request a pay order_
+
 ━━━━━━━━━━━━━━━━━━━━━
-_Reply with option number (1-2)_
+_Reply with option number (1-3)_
 
 💡 Type *0* to go back
 """
@@ -101,18 +104,21 @@ _Reply with option number (1-2)_
    🔐 *VERIFICATION*
 ╰─────────────────────────╯
 
-Are you a Meezan Bank customer?
+Who is making the deposit?
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-1️⃣  ✅  *Yes* - I have an account
+1️⃣  ✅  *Meezan Customer*
       _Auto-fetch your details_
 
-2️⃣  👤  *No* - Walk-in Customer
+2️⃣  👤  *Walk-in Individual*
       _Deposit to any account_
 
+3️⃣  🏢  *Business / Merchant*
+      _Company deposit_
+
 ━━━━━━━━━━━━━━━━━━━━━
-_Reply with option number (1-2)_
+_Reply with option number (1-3)_
 """
 
     # ============================================
@@ -240,6 +246,121 @@ _Enter the complete account number_
 """
 
     # ============================================
+    # BUSINESS/MERCHANT FLOW
+    # ============================================
+
+    BUSINESS_NAME_REQUEST = """
+╭─────────────────────────╮
+   🏢 *BUSINESS NAME*
+╰─────────────────────────╯
+
+Please enter your *business/company name*:
+
+━━━━━━━━━━━━━━━━━━━━━
+_Type the registered business name_
+"""
+
+    BUSINESS_REGISTRATION_REQUEST = """
+╭─────────────────────────╮
+   📋 *REGISTRATION NUMBER*
+╰─────────────────────────╯
+
+Please enter your *business registration number*:
+
+━━━━━━━━━━━━━━━━━━━━━
+💡 *Example:* REG-123456
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter your company registration number_
+"""
+
+    BUSINESS_TAX_ID_REQUEST = """
+╭─────────────────────────╮
+   📝 *TAX ID / NTN*
+╰─────────────────────────╯
+
+Please enter your *Tax ID or NTN*:
+
+━━━━━━━━━━━━━━━━━━━━━
+💡 *Example:* 1234567-8
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter your tax identification number_
+"""
+
+    BUSINESS_CONTACT_PERSON_REQUEST = """
+╭─────────────────────────╮
+   👤 *CONTACT PERSON*
+╰─────────────────────────╯
+
+Please enter the *contact person's name*:
+
+━━━━━━━━━━━━━━━━━━━━━
+_Full name of the authorized person_
+"""
+
+    BUSINESS_PHONE_REQUEST = """
+╭─────────────────────────╮
+   📱 *BUSINESS PHONE*
+╰─────────────────────────╯
+
+Please enter your *business phone number*:
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 *Format:* 021-12345678 or 03XXXXXXXXX
+💡 *Example:* 02112345678
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter business contact number_
+"""
+
+    # ============================================
+    # PAY ORDER FLOW
+    # ============================================
+
+    PAYORDER_PAYEE_NAME_REQUEST = """
+╭─────────────────────────╮
+   👤 *PAYEE INFORMATION*
+╰─────────────────────────╯
+
+Please enter the *payee's full name*
+(person who will receive the pay order):
+
+━━━━━━━━━━━━━━━━━━━━━
+_Type the complete name_
+"""
+
+    PAYORDER_PAYEE_CNIC_REQUEST = """
+╭─────────────────────────╮
+   🆔 *PAYEE CNIC*
+╰─────────────────────────╯
+
+Please enter the *payee's CNIC*:
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 *Format:* XXXXX-XXXXXXX-X
+💡 *Example:* 42101-1234567-1
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter the 13-digit CNIC with dashes_
+"""
+
+    PAYORDER_PAYEE_PHONE_REQUEST = """
+╭─────────────────────────╮
+   📱 *PAYEE CONTACT*
+╰─────────────────────────╯
+
+Please enter the *payee's phone number*:
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 *Format:* 03XXXXXXXXX
+💡 *Example:* 03001234567
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter mobile number (optional - send 'skip' to skip)_
+"""
+
+    # ============================================
     # CHEQUE DEPOSIT FLOW
     # ============================================
 
@@ -265,6 +386,27 @@ Please upload a *clear photo* of your cheque.
 📷 _Send the cheque image now_
 """
 
+    CHEQUE_CLEARING_TYPE_REQUEST = """
+╭─────────────────────────╮
+   ⏱️ *CLEARING TYPE*
+╰─────────────────────────╯
+
+Select the cheque clearing type:
+
+━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  🏙️  *Local Cheque*
+      _Same city - 1 day clearing_
+      _Fee: PKR 50_
+
+2️⃣  🌍  *Inter-City Cheque*
+      _Different city - 3 days clearing_
+      _Fee: PKR 150_
+
+━━━━━━━━━━━━━━━━━━━━━
+_Reply with option number (1-2)_
+"""
+
     @staticmethod
     def cheque_details_confirmation(cheque_data: Dict[str, Any]) -> str:
         """Generate cheque details confirmation message"""
@@ -277,10 +419,14 @@ Please upload a *clear photo* of your cheque.
         signature = cheque_data.get('cheque_signature_status') or 'N/A'
         cheque_number = cheque_data.get('cheque_number') or 'N/A'
         account_holder = cheque_data.get('cheque_account_holder_name') or 'N/A'
+        clearing_type = cheque_data.get('cheque_clearing_type', 'LOCAL')
+        clearing_days = cheque_data.get('cheque_clearing_days', 1)
+        processing_fee = cheque_data.get('cheque_processing_fee', 50)
 
         amount_str = WhatsAppMessages.format_amount(amount_figures) if amount_figures else 'N/A'
 
         sig_status = "✅ Present" if signature == 'present' else "❌ Missing" if signature == 'missing' else "⚠️ Unclear"
+        clearing_label = "🏙️ Local" if clearing_type == 'LOCAL' else "🌍 Inter-City"
 
         return f"""
 ╭─────────────────────────╮
@@ -299,6 +445,9 @@ _AI-extracted information:_
 📝 *In Words:* {amount_words}
 📅 *Date:* {cheque_date}
 ✍️ *Signature:* {sig_status}
+━━━━━━━━━━━━━━━━━━━━━
+⏱️ *Clearing:* {clearing_label} ({clearing_days} {'day' if clearing_days == 1 else 'days'})
+💵 *Fee:* PKR {processing_fee}
 ━━━━━━━━━━━━━━━━━━━━━
 
 *Please review and confirm:*
@@ -328,10 +477,11 @@ What would you like to edit?
 2️⃣  👤  Payee Name
 3️⃣  📅  Cheque Date
 4️⃣  🔢  Cheque Number
-5️⃣  ✅  *Done* - Back to confirmation
+5️⃣  ⏱️  Clearing Type
+6️⃣  ✅  *Done* - Back to confirmation
 
 ━━━━━━━━━━━━━━━━━━━━━
-_Reply with option number (1-5)_
+_Reply with option number (1-6)_
 """
 
     # ============================================
@@ -346,12 +496,24 @@ _Reply with option number (1-5)_
         transaction_type: str = "Cash Deposit",
         depositor_name: Optional[str] = None,
         depositor_cnic: Optional[str] = None,
-        depositor_phone: Optional[str] = None
+        depositor_phone: Optional[str] = None,
+        payee_name: Optional[str] = None,
+        payee_cnic: Optional[str] = None,
+        payee_phone: Optional[str] = None
     ) -> str:
         """Generate confirmation summary message"""
         masked_account = WhatsAppMessages.mask_account(account_number) if account_number else "N/A"
         formatted_amount = WhatsAppMessages.format_amount(amount)
-        tx_emoji = "💵" if "Cash" in transaction_type else "📄"
+
+        # Set emoji based on transaction type
+        if "Pay Order" in transaction_type or "PAY_ORDER" in transaction_type:
+            tx_emoji = "💳"
+        elif "Cash" in transaction_type:
+            tx_emoji = "💵"
+        elif "Cheque" in transaction_type:
+            tx_emoji = "📄"
+        else:
+            tx_emoji = "📝"
 
         summary = f"""
 ╭─────────────────────────╮
@@ -367,7 +529,19 @@ Please review your deposit details:
         if customer_name:
             summary += f"👤 *Account Holder:* {customer_name}\n"
 
-        if depositor_name and depositor_name != customer_name:
+        # For Pay Order, show payee details
+        if payee_name:
+            summary += f"""
+━━━━━━━━━━━━━━━━━━━━━
+👤 *Payee Details:*
+   *Name:* {payee_name}
+"""
+            if payee_cnic:
+                summary += f"   *CNIC:* {payee_cnic}\n"
+            if payee_phone:
+                summary += f"   *Phone:* {payee_phone}\n"
+        # For Cash/Cheque Deposit, show depositor details if different from customer
+        elif depositor_name and depositor_name != customer_name:
             summary += f"""
 ━━━━━━━━━━━━━━━━━━━━━
 🚶 *Depositor Details:*

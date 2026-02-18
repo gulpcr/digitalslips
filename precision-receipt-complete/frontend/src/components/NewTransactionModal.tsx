@@ -95,15 +95,24 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
   const [narration, setNarration] = useState('');
 
   // Depositor fields (Cash Deposit, Cheque Deposit optional)
+  const [depositorType, setDepositorType] = useState('INDIVIDUAL'); // INDIVIDUAL or BUSINESS
   const [depositorName, setDepositorName] = useState('');
   const [depositorCnic, setDepositorCnic] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
+
+  // Business/Merchant fields
+  const [businessName, setBusinessName] = useState('');
+  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState('');
+  const [businessTaxId, setBusinessTaxId] = useState('');
+  const [businessContactPerson, setBusinessContactPerson] = useState('');
+  const [businessPhone, setBusinessPhone] = useState('');
 
   // Cheque fields
   const [chequeNumber, setChequeNumber] = useState('');
   const [chequeDate, setChequeDate] = useState('');
   const [chequeBank, setChequeBank] = useState('');
   const [chequeBranch, setChequeBranch] = useState('');
+  const [chequeClearingType, setChequeClearingType] = useState('LOCAL'); // LOCAL or INTER_CITY
 
   // Pay Order fields
   const [payeeName, setPayeeName] = useState('');
@@ -155,13 +164,20 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     setCustomerAccount('');
     setAmount('');
     setNarration('');
+    setDepositorType('INDIVIDUAL');
     setDepositorName('');
     setDepositorCnic('');
     setDepositorPhone('');
+    setBusinessName('');
+    setBusinessRegistrationNumber('');
+    setBusinessTaxId('');
+    setBusinessContactPerson('');
+    setBusinessPhone('');
     setChequeNumber('');
     setChequeDate('');
     setChequeBank('');
     setChequeBranch('');
+    setChequeClearingType('LOCAL');
     setPayeeName('');
     setPayeeCnic('');
     setPayeePhone('');
@@ -175,6 +191,23 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     setBeneficiaryIban('');
     setErrors({});
     setCustomerInfo(null);
+  };
+
+  // Helper function to calculate clearing days and date
+  const getClearingInfo = () => {
+    const clearingDays = chequeClearingType === 'LOCAL' ? 1 : 3;
+    const clearingDate = new Date();
+    clearingDate.setDate(clearingDate.getDate() + clearingDays);
+
+    return {
+      days: clearingDays,
+      date: clearingDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }),
+      fee: chequeClearingType === 'LOCAL' ? 50 : 150, // PKR
+    };
   };
 
   const validateForm = (): boolean => {
@@ -194,12 +227,20 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
 
     // Type-specific validation
     if (transactionType === 'CASH_DEPOSIT') {
-      if (!depositorName) newErrors.depositorName = 'Depositor name is required';
-      if (!depositorCnic) newErrors.depositorCnic = 'Depositor CNIC is required';
-      else if (!depositorCnic.match(/^\d{5}-\d{7}-\d{1}$/)) {
-        newErrors.depositorCnic = 'CNIC must be in format: XXXXX-XXXXXXX-X';
+      if (depositorType === 'BUSINESS') {
+        if (!businessName) newErrors.businessName = 'Business name is required';
+        if (!businessRegistrationNumber) newErrors.businessRegistrationNumber = 'Registration number is required';
+        if (!businessTaxId) newErrors.businessTaxId = 'Tax ID/NTN is required';
+        if (!businessContactPerson) newErrors.businessContactPerson = 'Contact person is required';
+        if (!businessPhone) newErrors.businessPhone = 'Business phone is required';
+      } else {
+        if (!depositorName) newErrors.depositorName = 'Depositor name is required';
+        if (!depositorCnic) newErrors.depositorCnic = 'Depositor CNIC is required';
+        else if (!depositorCnic.match(/^\d{5}-\d{7}-\d{1}$/)) {
+          newErrors.depositorCnic = 'CNIC must be in format: XXXXX-XXXXXXX-X';
+        }
+        if (!depositorPhone) newErrors.depositorPhone = 'Depositor phone is required';
       }
-      if (!depositorPhone) newErrors.depositorPhone = 'Depositor phone is required';
     }
 
     if (transactionType === 'CHEQUE_DEPOSIT') {
@@ -257,13 +298,29 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
 
   const buildAdditionalData = (): Record<string, any> | undefined => {
     switch (transactionType) {
-      case 'CHEQUE_DEPOSIT':
+      case 'CASH_DEPOSIT':
+        if (depositorType === 'BUSINESS') {
+          return {
+            business_name: businessName,
+            business_registration_number: businessRegistrationNumber,
+            business_tax_id: businessTaxId,
+            business_contact_person: businessContactPerson,
+            business_phone: businessPhone,
+          };
+        }
+        return undefined;
+      case 'CHEQUE_DEPOSIT': {
+        const clearingInfo = getClearingInfo();
         return {
           cheque_number: chequeNumber,
           cheque_date: chequeDate,
           cheque_bank: chequeBank,
           cheque_branch: chequeBranch || undefined,
+          cheque_clearing_type: chequeClearingType,
+          cheque_clearing_days: clearingInfo.days,
+          cheque_processing_fee: clearingInfo.fee,
         };
+      }
       case 'PAY_ORDER':
         return {
           payee_name: payeeName,
@@ -489,43 +546,115 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                   <FiDollarSign className="text-green-600" />
                   Depositor Information
                 </h3>
-                <p className="text-sm text-text-secondary">Person depositing the cash</p>
+                <p className="text-sm text-text-secondary">Who is depositing the cash?</p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Input
-                      label="Depositor Name *"
-                      placeholder="Full name"
-                      value={depositorName}
-                      onChange={(e) => setDepositorName(e.target.value)}
-                      fullWidth
-                      error={!!errors.depositorName}
-                    />
-                    {renderFieldError('depositorName')}
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">Depositor Type *</label>
+                  <select
+                    className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={depositorType}
+                    onChange={(e) => setDepositorType(e.target.value as 'INDIVIDUAL' | 'BUSINESS')}
+                  >
+                    <option value="INDIVIDUAL">Individual Person</option>
+                    <option value="BUSINESS">Business / Merchant</option>
+                  </select>
+                </div>
+
+                {depositorType === 'BUSINESS' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Input
+                        label="Business Name *"
+                        placeholder="ABC Corporation"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        fullWidth
+                        error={!!errors.businessName}
+                      />
+                      {renderFieldError('businessName')}
+                    </div>
+                    <div>
+                      <Input
+                        label="Registration Number *"
+                        placeholder="REG-123456"
+                        value={businessRegistrationNumber}
+                        onChange={(e) => setBusinessRegistrationNumber(e.target.value)}
+                        fullWidth
+                        error={!!errors.businessRegistrationNumber}
+                      />
+                      {renderFieldError('businessRegistrationNumber')}
+                    </div>
+                    <div>
+                      <Input
+                        label="Tax ID / NTN *"
+                        placeholder="1234567-8"
+                        value={businessTaxId}
+                        onChange={(e) => setBusinessTaxId(e.target.value)}
+                        fullWidth
+                        error={!!errors.businessTaxId}
+                      />
+                      {renderFieldError('businessTaxId')}
+                    </div>
+                    <div>
+                      <Input
+                        label="Contact Person *"
+                        placeholder="Full name"
+                        value={businessContactPerson}
+                        onChange={(e) => setBusinessContactPerson(e.target.value)}
+                        fullWidth
+                        error={!!errors.businessContactPerson}
+                      />
+                      {renderFieldError('businessContactPerson')}
+                    </div>
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Business Phone *"
+                        placeholder="+92-21-1234567"
+                        value={businessPhone}
+                        onChange={(e) => setBusinessPhone(e.target.value)}
+                        fullWidth
+                        error={!!errors.businessPhone}
+                      />
+                      {renderFieldError('businessPhone')}
+                    </div>
                   </div>
-                  <div>
-                    <Input
-                      label="Depositor CNIC *"
-                      placeholder="42101-1234567-1"
-                      value={depositorCnic}
-                      onChange={(e) => setDepositorCnic(e.target.value)}
-                      fullWidth
-                      error={!!errors.depositorCnic}
-                    />
-                    {renderFieldError('depositorCnic')}
-                  </div>
-                  <div>
-                    <Input
-                      label="Depositor Phone *"
-                      placeholder="+92-300-1234567"
-                      value={depositorPhone}
-                      onChange={(e) => setDepositorPhone(e.target.value)}
-                      fullWidth
-                      error={!!errors.depositorPhone}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Input
+                        label="Depositor Name *"
+                        placeholder="Full name"
+                        value={depositorName}
+                        onChange={(e) => setDepositorName(e.target.value)}
+                        fullWidth
+                        error={!!errors.depositorName}
+                      />
+                      {renderFieldError('depositorName')}
+                    </div>
+                    <div>
+                      <Input
+                        label="Depositor CNIC *"
+                        placeholder="42101-1234567-1"
+                        value={depositorCnic}
+                        onChange={(e) => setDepositorCnic(e.target.value)}
+                        fullWidth
+                        error={!!errors.depositorCnic}
+                      />
+                      {renderFieldError('depositorCnic')}
+                    </div>
+                    <div>
+                      <Input
+                        label="Depositor Phone *"
+                        placeholder="+92-300-1234567"
+                        value={depositorPhone}
+                        onChange={(e) => setDepositorPhone(e.target.value)}
+                        fullWidth
+                        error={!!errors.depositorPhone}
                     />
                     {renderFieldError('depositorPhone')}
                   </div>
                 </div>
+                )}
               </div>
             )}
 
@@ -584,6 +713,49 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       onChange={(e) => setChequeBranch(e.target.value)}
                       fullWidth
                     />
+                  </div>
+                </div>
+
+                {/* Clearing Type Selection */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <label className="block text-sm font-medium text-text-primary mb-2">Cheque Clearing Type *</label>
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="clearingType"
+                        value="LOCAL"
+                        checked={chequeClearingType === 'LOCAL'}
+                        onChange={(e) => setChequeClearingType(e.target.value)}
+                        className="w-4 h-4 text-primary"
+                      />
+                      <span className="text-sm font-medium">Local</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="clearingType"
+                        value="INTER_CITY"
+                        checked={chequeClearingType === 'INTER_CITY'}
+                        onChange={(e) => setChequeClearingType(e.target.value)}
+                        className="w-4 h-4 text-primary"
+                      />
+                      <span className="text-sm font-medium">Inter-City</span>
+                    </label>
+                  </div>
+                  <div className="text-xs text-text-secondary bg-white p-2 rounded border border-blue-100 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Clearing:</span>
+                      <span className="font-semibold text-primary">{getClearingInfo().days} {getClearingInfo().days === 1 ? 'day' : 'days'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Expected:</span>
+                      <span className="font-semibold text-primary">{getClearingInfo().date}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Fee:</span>
+                      <span className="font-semibold text-primary">PKR {getClearingInfo().fee}</span>
+                    </div>
                   </div>
                 </div>
 

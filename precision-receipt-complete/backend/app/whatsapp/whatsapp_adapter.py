@@ -42,8 +42,17 @@ class SessionState(str, Enum):
     WALKIN_PHONE = "WALKIN_PHONE"
     WALKIN_TARGET_ACCOUNT = "WALKIN_TARGET_ACCOUNT"
 
+    # Business/Merchant flow states
+    BUSINESS_NAME = "BUSINESS_NAME"
+    BUSINESS_REGISTRATION = "BUSINESS_REGISTRATION"
+    BUSINESS_TAX_ID = "BUSINESS_TAX_ID"
+    BUSINESS_CONTACT_PERSON = "BUSINESS_CONTACT_PERSON"
+    BUSINESS_PHONE = "BUSINESS_PHONE"
+    BUSINESS_TARGET_ACCOUNT = "BUSINESS_TARGET_ACCOUNT"
+
     # Cheque flow states
     CHEQUE_IMAGE = "CHEQUE_IMAGE"
+    CHEQUE_CLEARING_TYPE = "CHEQUE_CLEARING_TYPE"
     CHEQUE_CONFIRMATION = "CHEQUE_CONFIRMATION"
     CHEQUE_ACCOUNT_SELECTION = "CHEQUE_ACCOUNT_SELECTION"
     CHEQUE_EDIT_MENU = "CHEQUE_EDIT_MENU"
@@ -51,6 +60,12 @@ class SessionState(str, Enum):
     CHEQUE_EDIT_PAYEE = "CHEQUE_EDIT_PAYEE"
     CHEQUE_EDIT_DATE = "CHEQUE_EDIT_DATE"
     CHEQUE_EDIT_CHEQUE_NUMBER = "CHEQUE_EDIT_CHEQUE_NUMBER"
+    CHEQUE_EDIT_CLEARING_TYPE = "CHEQUE_EDIT_CLEARING_TYPE"
+
+    # Pay Order flow states
+    PAYORDER_PAYEE_NAME = "PAYORDER_PAYEE_NAME"
+    PAYORDER_PAYEE_CNIC = "PAYORDER_PAYEE_CNIC"
+    PAYORDER_PAYEE_PHONE = "PAYORDER_PAYEE_PHONE"
 
     # Other states
     ACTIVE_SLIP_OPTIONS = "ACTIVE_SLIP_OPTIONS"
@@ -221,7 +236,14 @@ class WhatsAppAdapter:
             SessionState.WALKIN_NAME: self._handle_walkin_name,
             SessionState.WALKIN_PHONE: self._handle_walkin_phone,
             SessionState.WALKIN_TARGET_ACCOUNT: self._handle_walkin_target_account,
+            SessionState.BUSINESS_NAME: self._handle_business_name,
+            SessionState.BUSINESS_REGISTRATION: self._handle_business_registration,
+            SessionState.BUSINESS_TAX_ID: self._handle_business_tax_id,
+            SessionState.BUSINESS_CONTACT_PERSON: self._handle_business_contact_person,
+            SessionState.BUSINESS_PHONE: self._handle_business_phone,
+            SessionState.BUSINESS_TARGET_ACCOUNT: self._handle_business_target_account,
             SessionState.CHEQUE_IMAGE: self._handle_cheque_image,
+            SessionState.CHEQUE_CLEARING_TYPE: self._handle_cheque_clearing_type,
             SessionState.CHEQUE_CONFIRMATION: self._handle_cheque_confirmation,
             SessionState.CHEQUE_ACCOUNT_SELECTION: self._handle_cheque_account_selection,
             SessionState.CHEQUE_EDIT_MENU: self._handle_cheque_edit_menu,
@@ -229,6 +251,10 @@ class WhatsAppAdapter:
             SessionState.CHEQUE_EDIT_PAYEE: self._handle_cheque_edit_payee,
             SessionState.CHEQUE_EDIT_DATE: self._handle_cheque_edit_date,
             SessionState.CHEQUE_EDIT_CHEQUE_NUMBER: self._handle_cheque_edit_cheque_number,
+            SessionState.CHEQUE_EDIT_CLEARING_TYPE: self._handle_cheque_edit_clearing_type,
+            SessionState.PAYORDER_PAYEE_NAME: self._handle_payorder_payee_name,
+            SessionState.PAYORDER_PAYEE_CNIC: self._handle_payorder_payee_cnic,
+            SessionState.PAYORDER_PAYEE_PHONE: self._handle_payorder_payee_phone,
             SessionState.ACTIVE_SLIP_OPTIONS: self._handle_active_slip_options,
             SessionState.CUSTOMER_NOT_FOUND_OPTIONS: self._handle_customer_not_found_options,
             SessionState.CONFIRM_OVERWRITE: self._handle_confirm_overwrite,
@@ -310,6 +336,11 @@ class WhatsAppAdapter:
             session.data['transaction_type'] = 'CHEQUE_DEPOSIT'
             session.state = SessionState.CHEQUE_IMAGE
             return self.messages.CHEQUE_IMAGE_REQUEST
+        elif message == '3':
+            # Pay Order
+            session.data['transaction_type'] = 'PAY_ORDER'
+            session.state = SessionState.CUSTOMER_TYPE
+            return self.messages.CUSTOMER_TYPE_MENU
         else:
             return self.messages.INVALID_OPTION + "\n" + self.messages.DEPOSIT_TYPE_MENU
 
@@ -324,7 +355,7 @@ class WhatsAppAdapter:
         original_message: str,
         media_url: Optional[str]
     ) -> str:
-        """Handle customer type selection (Meezan customer or walk-in)"""
+        """Handle customer type selection (Meezan customer, walk-in, or business)"""
         if message == '1':
             # Meezan Customer - lookup by phone
             session.data['is_meezan_customer'] = True
@@ -334,6 +365,11 @@ class WhatsAppAdapter:
             session.data['is_meezan_customer'] = False
             session.state = SessionState.WALKIN_CNIC
             return self.messages.WALKIN_CNIC_REQUEST
+        elif message == '3':
+            # Business/Merchant
+            session.data['is_business'] = True
+            session.state = SessionState.BUSINESS_NAME
+            return self.messages.BUSINESS_NAME_REQUEST
         else:
             return self.messages.INVALID_OPTION + "\n" + self.messages.CUSTOMER_TYPE_MENU
 
@@ -654,6 +690,11 @@ _Reply with the option number_"""
                 session.data['selected_account'] = selected['account_number']
                 session.data['selected_account_id'] = selected['id']
 
+                # For Pay Order, redirect to payee information capture
+                if session.data.get('transaction_type') == 'PAY_ORDER':
+                    session.state = SessionState.PAYORDER_PAYEE_NAME
+                    return self.messages.PAYORDER_PAYEE_NAME_REQUEST
+
                 # For cheque deposits, amount is already set from OCR - skip to confirmation
                 if session.data.get('amount'):
                     session.state = SessionState.CONFIRMATION
@@ -664,7 +705,10 @@ _Reply with the option number_"""
                         transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
                         depositor_name=session.data.get('depositor_name'),
                         depositor_cnic=session.data.get('depositor_cnic'),
-                        depositor_phone=session.data.get('depositor_phone')
+                        depositor_phone=session.data.get('depositor_phone'),
+                        payee_name=session.data.get('payee_name'),
+                        payee_cnic=session.data.get('payee_cnic'),
+                        payee_phone=session.data.get('payee_phone')
                     )
                 else:
                     session.state = SessionState.AMOUNT_INPUT
@@ -702,7 +746,10 @@ _Reply with the option number_"""
             transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
             depositor_name=session.data.get('depositor_name'),
             depositor_cnic=session.data.get('depositor_cnic'),
-            depositor_phone=session.data.get('depositor_phone')
+            depositor_phone=session.data.get('depositor_phone'),
+            payee_name=session.data.get('payee_name'),
+            payee_cnic=session.data.get('payee_cnic'),
+            payee_phone=session.data.get('payee_phone')
         )
 
     # ============================================
@@ -732,16 +779,33 @@ _Reply with the option number_"""
                 transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
                 depositor_name=session.data.get('depositor_name'),
                 depositor_cnic=session.data.get('depositor_cnic'),
-                depositor_phone=session.data.get('depositor_phone')
+                depositor_phone=session.data.get('depositor_phone'),
+                payee_name=session.data.get('payee_name'),
+                payee_cnic=session.data.get('payee_cnic'),
+                payee_phone=session.data.get('payee_phone')
             )
 
     async def _create_deposit_slip(self, session: UserSession) -> str:
         """Create deposit slip using EXISTING DRIDService"""
         try:
-            # Prepare additional data for cheque deposits
+            # Prepare additional data based on transaction type
             additional_data = None
             if session.data.get('cheque_data'):
                 additional_data = session.data['cheque_data']
+            elif session.data.get('transaction_type') == 'PAY_ORDER':
+                additional_data = {
+                    'payee_name': session.data.get('payee_name'),
+                    'payee_cnic': session.data.get('payee_cnic'),
+                    'payee_phone': session.data.get('payee_phone')
+                }
+            elif session.data.get('is_business'):
+                additional_data = {
+                    'business_name': session.data.get('business_name'),
+                    'business_registration_number': session.data.get('business_registration_number'),
+                    'business_tax_id': session.data.get('business_tax_id'),
+                    'business_contact_person': session.data.get('business_contact_person'),
+                    'business_phone': session.data.get('business_phone')
+                }
 
             # Call EXISTING DRIDService.create_deposit_slip()
             slip, error = DRIDService.create_deposit_slip(
@@ -930,7 +994,10 @@ _Reply with the option number_"""
                 transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
                 depositor_name=session.data.get('depositor_name'),
                 depositor_cnic=session.data.get('depositor_cnic'),
-                depositor_phone=session.data.get('depositor_phone')
+                depositor_phone=session.data.get('depositor_phone'),
+                payee_name=session.data.get('payee_name'),
+                payee_cnic=session.data.get('payee_cnic'),
+                payee_phone=session.data.get('payee_phone')
             )
         else:
             # Move to amount input for cash deposits
@@ -992,12 +1059,46 @@ _Reply with the option number_"""
             if cheque_data.amount_in_figures:
                 session.data['amount'] = Decimal(str(cheque_data.amount_in_figures))
 
-            session.state = SessionState.CHEQUE_CONFIRMATION
-            return self.messages.cheque_details_confirmation(session.data['cheque_data'])
+            # After OCR, ask for clearing type
+            session.state = SessionState.CHEQUE_CLEARING_TYPE
+            return self.messages.CHEQUE_CLEARING_TYPE_REQUEST
 
         except Exception as e:
             logger.error(f"Error processing cheque image: {e}", exc_info=True)
             return self.messages.CHEQUE_OCR_FAILED
+
+    async def _handle_cheque_clearing_type(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle cheque clearing type selection"""
+        if message == '1':
+            # Local cheque
+            clearing_type = 'LOCAL'
+            clearing_days = 1
+            processing_fee = 50
+        elif message == '2':
+            # Inter-city cheque
+            clearing_type = 'INTER_CITY'
+            clearing_days = 3
+            processing_fee = 150
+        else:
+            return self.messages.INVALID_OPTION + "\n" + self.messages.CHEQUE_CLEARING_TYPE_REQUEST
+
+        # Store clearing information in cheque_data
+        if 'cheque_data' not in session.data:
+            session.data['cheque_data'] = {}
+
+        session.data['cheque_data']['cheque_clearing_type'] = clearing_type
+        session.data['cheque_data']['cheque_clearing_days'] = clearing_days
+        session.data['cheque_data']['cheque_processing_fee'] = processing_fee
+
+        # Move to confirmation
+        session.state = SessionState.CHEQUE_CONFIRMATION
+        return self.messages.cheque_details_confirmation(session.data['cheque_data'])
 
     async def _handle_cheque_confirmation(
         self,
@@ -1069,6 +1170,10 @@ _Reply with the option number_"""
             current = cheque_data.get('cheque_number', 'Not set')
             return f"*Edit Cheque Number*\n\nCurrent number: {current}\n\nEnter the correct cheque number:"
         elif message == '5':
+            # Edit clearing type
+            session.state = SessionState.CHEQUE_EDIT_CLEARING_TYPE
+            return self.messages.CHEQUE_CLEARING_TYPE_REQUEST
+        elif message == '6':
             # Done editing - back to confirmation
             session.state = SessionState.CHEQUE_CONFIRMATION
             return self.messages.cheque_details_confirmation(session.data.get('cheque_data', {}))
@@ -1165,3 +1270,215 @@ _Reply with the option number_"""
 
         session.state = SessionState.CHEQUE_EDIT_MENU
         return f"✅ Cheque number updated to: {cheque_num}\n\n" + self.messages.CHEQUE_EDIT_MENU
+
+    async def _handle_cheque_edit_clearing_type(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle clearing type edit"""
+        if message == '1':
+            clearing_type = 'LOCAL'
+            clearing_days = 1
+            processing_fee = 50
+            label = "Local (1 day)"
+        elif message == '2':
+            clearing_type = 'INTER_CITY'
+            clearing_days = 3
+            processing_fee = 150
+            label = "Inter-City (3 days)"
+        else:
+            return self.messages.INVALID_OPTION + "\n" + self.messages.CHEQUE_CLEARING_TYPE_REQUEST
+
+        # Update cheque data
+        cheque_data = session.data.get('cheque_data', {})
+        cheque_data['cheque_clearing_type'] = clearing_type
+        cheque_data['cheque_clearing_days'] = clearing_days
+        cheque_data['cheque_processing_fee'] = processing_fee
+        session.data['cheque_data'] = cheque_data
+
+        session.state = SessionState.CHEQUE_EDIT_MENU
+        return f"✅ Clearing type updated to: {label}\n   Fee: PKR {processing_fee}\n\n" + self.messages.CHEQUE_EDIT_MENU
+
+    # ============================================
+    # PAY ORDER HANDLERS
+    # ============================================
+
+    async def _handle_payorder_payee_name(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle pay order payee name input"""
+        name = original_message.strip()
+        if len(name) < 3:
+            return "Please enter a valid name (at least 3 characters):"
+
+        session.data['payee_name'] = name
+        session.state = SessionState.PAYORDER_PAYEE_CNIC
+        return self.messages.PAYORDER_PAYEE_CNIC_REQUEST
+
+    async def _handle_payorder_payee_cnic(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle pay order payee CNIC input"""
+        if not self.messages.validate_cnic(original_message):
+            return self.messages.INVALID_CNIC
+
+        cnic = self.messages.format_cnic(original_message)
+        session.data['payee_cnic'] = cnic
+        session.state = SessionState.PAYORDER_PAYEE_PHONE
+        return self.messages.PAYORDER_PAYEE_PHONE_REQUEST
+
+    async def _handle_payorder_payee_phone(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle pay order payee phone input"""
+        # Allow skipping phone number
+        if message == 'skip':
+            session.data['payee_phone'] = None
+        else:
+            if not self.messages.validate_phone(original_message):
+                return self.messages.INVALID_PHONE
+            phone = self.messages.clean_phone_number(original_message)
+            session.data['payee_phone'] = phone
+
+        # After payee details, go to amount input
+        session.state = SessionState.AMOUNT_INPUT
+        return self.messages.AMOUNT_REQUEST
+
+    # ============================================
+    # BUSINESS/MERCHANT HANDLERS
+    # ============================================
+
+    async def _handle_business_name(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle business name input"""
+        name = original_message.strip()
+        if len(name) < 3:
+            return "Please enter a valid business name (at least 3 characters):"
+
+        session.data['business_name'] = name
+        session.state = SessionState.BUSINESS_REGISTRATION
+        return self.messages.BUSINESS_REGISTRATION_REQUEST
+
+    async def _handle_business_registration(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle business registration number input"""
+        reg_number = original_message.strip()
+        if len(reg_number) < 3:
+            return "Please enter a valid registration number:"
+
+        session.data['business_registration_number'] = reg_number
+        session.state = SessionState.BUSINESS_TAX_ID
+        return self.messages.BUSINESS_TAX_ID_REQUEST
+
+    async def _handle_business_tax_id(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle business tax ID/NTN input"""
+        tax_id = original_message.strip()
+        if len(tax_id) < 5:
+            return "Please enter a valid Tax ID/NTN:"
+
+        session.data['business_tax_id'] = tax_id
+        session.state = SessionState.BUSINESS_CONTACT_PERSON
+        return self.messages.BUSINESS_CONTACT_PERSON_REQUEST
+
+    async def _handle_business_contact_person(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle business contact person input"""
+        contact_person = original_message.strip()
+        if len(contact_person) < 3:
+            return "Please enter a valid contact person name:"
+
+        session.data['business_contact_person'] = contact_person
+        session.state = SessionState.BUSINESS_PHONE
+        return self.messages.BUSINESS_PHONE_REQUEST
+
+    async def _handle_business_phone(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle business phone input"""
+        if not self.messages.validate_phone(original_message):
+            return self.messages.INVALID_PHONE
+
+        phone = self.messages.clean_phone_number(original_message)
+        session.data['business_phone'] = phone
+        session.state = SessionState.BUSINESS_TARGET_ACCOUNT
+        return self.messages.WALKIN_TARGET_ACCOUNT_REQUEST  # Reuse the target account message
+
+    async def _handle_business_target_account(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle business target account input"""
+        account_number = original_message.strip()
+
+        # Validate account exists
+        account = self.db.query(Account).filter(
+            Account.account_number == account_number,
+            Account.account_status == AccountStatus.ACTIVE
+        ).first()
+
+        if not account:
+            return self.messages.ACCOUNT_NOT_FOUND
+
+        # Get customer info for this account
+        customer = self.db.query(Customer).filter(
+            Customer.id == account.customer_id
+        ).first()
+
+        if not customer:
+            return self.messages.ACCOUNT_NOT_FOUND
+
+        # Store account and customer info
+        session.data['selected_account'] = account.account_number
+        session.data['selected_account_id'] = str(account.id)
+        session.data['customer_id'] = str(customer.id)
+        session.data['customer_cnic'] = customer.cnic
+        session.data['customer_name'] = customer.full_name
+        session.data['customer_phone'] = customer.phone
+        session.data['depositor_relationship'] = 'BUSINESS'
+
+        # Move to amount input
+        session.state = SessionState.AMOUNT_INPUT
+        return f"*Account Found*\n\nAccount Holder: {customer.full_name}\n\n" + self.messages.AMOUNT_REQUEST
