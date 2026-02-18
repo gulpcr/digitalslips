@@ -5,6 +5,8 @@ Maps WhatsApp input to existing DRID flow services
 """
 
 import logging
+import os
+import base64
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
@@ -19,6 +21,7 @@ from app.models import (
 from app.services.drid_service import DRIDService
 from app.services.cheque_ocr_service import ChequeOCRService
 from app.whatsapp.whatsapp_messages import WhatsAppMessages
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +167,101 @@ class WhatsAppAdapter:
         self.db = db
         self.session_manager = session_manager or SessionManager()
         self.messages = WhatsAppMessages
+
+    def save_qr_code_image(self, qr_code_base64: str, drid: str) -> Optional[str]:
+        """
+        Save QR code as PNG file and return public URL
+
+        Args:
+            qr_code_base64: Base64 encoded QR code (format: data:image/png;base64,...)
+            drid: DRID to use in filename
+
+        Returns:
+            Public URL to the QR code image, or None if failed
+        """
+        try:
+            # Extract base64 data (remove data:image/png;base64, prefix)
+            if qr_code_base64.startswith('data:image/png;base64,'):
+                base64_data = qr_code_base64.split(',')[1]
+            else:
+                base64_data = qr_code_base64
+
+            # Decode base64 to bytes
+            image_bytes = base64.b64decode(base64_data)
+
+            # Create uploads/qrcodes directory if it doesn't exist
+            qr_dir = os.path.join('uploads', 'qrcodes')
+            os.makedirs(qr_dir, exist_ok=True)
+
+            # Save image with DRID as filename
+            filename = f"{drid}.png"
+            filepath = os.path.join(qr_dir, filename)
+
+            with open(filepath, 'wb') as f:
+                f.write(image_bytes)
+
+            # Generate public URL
+            # Use PUBLIC_URL if set (should be ngrok URL for WhatsApp), otherwise use localhost:9001
+            base_url = settings.PUBLIC_URL if settings.PUBLIC_URL else 'http://localhost:9001'
+            public_url = f"{base_url}/uploads/qrcodes/{filename}"
+
+            logger.info(f"QR code saved: {filepath}, URL: {public_url}")
+            return public_url
+
+        except Exception as e:
+            logger.error(f"Error saving QR code: {e}", exc_info=True)
+            return None
+
+    async def _send_qr_code_to_customer(self, phone_number: str, drid: str, qr_url: str) -> bool:
+        """
+        Send QR code image to customer via WhatsApp
+
+        Args:
+            phone_number: Customer's phone number (may have whatsapp: prefix)
+            drid: The DRID reference
+            qr_url: Public URL to the QR code image
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        try:
+            # Check if Twilio is configured
+            if not settings.TWILIO_ACCOUNT_SID or settings.TWILIO_ACCOUNT_SID.startswith("your-"):
+                logger.info(f"[SIMULATED] Would send QR code to {phone_number}: {qr_url}")
+                return True
+
+            from twilio.rest import Client
+
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+
+            # Format phone numbers
+            phone = phone_number
+            if phone.startswith('whatsapp:'):
+                to_whatsapp = phone
+            else:
+                # Normalize phone
+                if not phone.startswith('+'):
+                    phone = f"+{phone}"
+                to_whatsapp = f"whatsapp:{phone}"
+
+            from_whatsapp = f"whatsapp:{settings.TWILIO_PHONE_NUMBER}"
+
+            # Send QR code image with caption
+            message_body = f"📱 *Show this QR code at the branch*\n\nThe teller can scan this QR code to retrieve your deposit slip instantly.\n\n*DRID:* `{drid}`"
+
+            msg = client.messages.create(
+                body=message_body,
+                from_=from_whatsapp,
+                to=to_whatsapp,
+                media_url=[qr_url]
+            )
+
+            logger.info(f"QR code sent to {phone_number}, Message SID: {msg.sid}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error sending QR code via WhatsApp: {e}", exc_info=True)
+            return False
 
     async def process_message(
         self,
@@ -862,6 +960,19 @@ _Reply with the option number_"""
                 customer_name=slip.customer_name,
                 account_number=slip.customer_account
             )
+
+            # Send QR code image as separate message
+            if slip.qr_code_data:
+                try:
+                    # Save QR code to file and get public URL
+                    qr_url = self.save_qr_code_image(slip.qr_code_data, slip.drid)
+
+                    if qr_url:
+                        # Send QR code image via WhatsApp
+                        await self._send_qr_code_to_customer(session.phone_number, slip.drid, qr_url)
+                except Exception as e:
+                    logger.error(f"Error sending QR code: {e}", exc_info=True)
+                    # Don't fail the whole flow if QR sending fails
 
             # Reset session
             session.reset()

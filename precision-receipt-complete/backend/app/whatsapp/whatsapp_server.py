@@ -14,6 +14,7 @@ from typing import Optional
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
 from fastapi.responses import Response, PlainTextResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import uvicorn
 
@@ -46,6 +47,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files - serve uploads directory for QR codes
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("uploads/qrcodes", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Global session manager (shared across requests)
 session_manager = SessionManager()
@@ -572,11 +578,20 @@ async def notify_transaction_complete(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def send_whatsapp_message(phone_number: str, message: str) -> bool:
-    """Send a WhatsApp message via Twilio"""
+async def send_whatsapp_message(phone_number: str, message: str, media_url: Optional[str] = None) -> bool:
+    """
+    Send a WhatsApp message via Twilio
+
+    Args:
+        phone_number: Recipient phone number
+        message: Text message to send
+        media_url: Optional URL to media file (image, PDF, etc.)
+    """
     try:
         if not settings.TWILIO_ACCOUNT_SID or settings.TWILIO_ACCOUNT_SID.startswith("your-"):
             logger.info(f"[SIMULATED] WhatsApp to {phone_number}: {message[:50]}...")
+            if media_url:
+                logger.info(f"[SIMULATED] Media URL: {media_url}")
             return True
 
         from twilio.rest import Client
@@ -594,11 +609,19 @@ async def send_whatsapp_message(phone_number: str, message: str) -> bool:
 
         from_whatsapp = f"whatsapp:{settings.TWILIO_PHONE_NUMBER}"
 
-        msg = client.messages.create(
-            body=message,
-            from_=from_whatsapp,
-            to=to_whatsapp
-        )
+        # Build message parameters
+        message_params = {
+            'body': message,
+            'from_': from_whatsapp,
+            'to': to_whatsapp
+        }
+
+        # Add media URL if provided
+        if media_url:
+            message_params['media_url'] = [media_url]
+            logger.info(f"Sending message with media: {media_url}")
+
+        msg = client.messages.create(**message_params)
 
         logger.info(f"WhatsApp sent: {msg.sid}")
         return True

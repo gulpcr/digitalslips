@@ -7,11 +7,13 @@ Meezan Bank Pakistan - Digital Transaction Receipt System
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 import time
+import os
 from typing import AsyncGenerator
 
 from app.core.config import settings
@@ -83,6 +85,20 @@ app.add_middleware(
 
 # GZip Middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+# ================================
+# STATIC FILES
+# ================================
+
+# Create uploads directory if it doesn't exist
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("uploads/qrcodes", exist_ok=True)
+
+# Mount uploads directory to serve QR codes and other files
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+logger.info("Static files mounted: /uploads")
 
 
 # Request ID and Timing Middleware
