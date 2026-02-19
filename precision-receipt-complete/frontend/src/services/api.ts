@@ -36,11 +36,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ detail?: string; message?: string }>) => {
-    const message = error.response?.data?.detail
-      || error.response?.data?.message
-      || error.message
-      || 'An error occurred';
-
     // Handle specific error codes
     if (error.response?.status === 401) {
       // Don't redirect for public pages

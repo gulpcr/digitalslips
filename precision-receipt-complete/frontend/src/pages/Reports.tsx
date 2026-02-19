@@ -153,9 +153,6 @@ const Reports: React.FC = () => {
     setAuditPage(1);
   };
 
-  // Get current tab's report type for export
-  const currentTab = TABS.find((t) => t.id === activeTab);
-
   return (
     <AdminLayout
       title="Reports"

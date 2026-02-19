@@ -151,7 +151,7 @@ interface SignatureVerification {
 
 const ReceiptVerification: React.FC = () => {
   const { receiptNumber } = useParams<{ receiptNumber: string }>();
-  const [searchParams] = useSearchParams();
+  const [_searchParams] = useSearchParams();
   const [receipt, setReceipt] = useState<ReceiptDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

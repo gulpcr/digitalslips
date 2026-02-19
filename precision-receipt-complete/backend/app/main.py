@@ -67,7 +67,8 @@ app = FastAPI(
     docs_url="/api/docs" if settings.ENABLE_SWAGGER_DOCS else None,
     redoc_url="/api/redoc" if settings.ENABLE_SWAGGER_DOCS else None,
     openapi_url="/api/openapi.json" if settings.ENABLE_SWAGGER_DOCS else None,
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=True
 )
 
 # ================================

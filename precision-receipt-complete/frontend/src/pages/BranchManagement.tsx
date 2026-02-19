@@ -24,7 +24,6 @@ import Table from '../components/ui/Table';
 import toast from 'react-hot-toast';
 import { branchService, BranchCreate, BranchUpdate } from '../services/branch.service';
 import { Branch } from '../types';
-import { format } from 'date-fns';
 
 const BRANCH_TYPES = [
   { value: 'MAIN', label: 'Main Branch', description: 'Head office' },

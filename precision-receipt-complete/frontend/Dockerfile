@@ -10,6 +10,9 @@ RUN npm install
 
 COPY . .
 
+# Set API URL to relative path for production (goes through nginx proxy)
+ENV VITE_API_URL=/api
+
 # Build production assets
 RUN npm run build
 

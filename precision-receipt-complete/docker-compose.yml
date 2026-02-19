@@ -62,8 +62,18 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SMS_ENABLED: ${SMS_ENABLED}
+      SMS_PROVIDER: ${SMS_PROVIDER}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      TWILIO_SMS_PHONE_NUMBER: ${TWILIO_SMS_PHONE_NUMBER}
+      PUBLIC_URL: ${PUBLIC_URL}
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
@@ -81,7 +91,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "3080:80"
     networks:
       - precision-network
     restart: unless-stopped
@@ -104,6 +114,18 @@ services:
       REDIS_PORT: 6379
       NODE_ENV: production
       WHATSAPP_PORT: 8000
+      PUBLIC_URL: ${PUBLIC_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SMS_ENABLED: ${SMS_ENABLED}
+      SMS_PROVIDER: ${SMS_PROVIDER}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      TWILIO_SMS_PHONE_NUMBER: ${TWILIO_SMS_PHONE_NUMBER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL}
     ports:
       - "9001:8000"
     command: python -m app.whatsapp.whatsapp_server

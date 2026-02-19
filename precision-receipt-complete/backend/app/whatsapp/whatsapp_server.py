@@ -152,7 +152,7 @@ async def verify_receipt(
                     "account": f"****{slip.customer_account[-4:]}" if slip.customer_account else "N/A",
                     "status": slip.status.value if slip.status else "pending",
                     "created": slip.created_at.strftime("%Y-%m-%d %H:%M") if slip.created_at else "N/A",
-                    "deposit_type": slip.deposit_type.value if slip.deposit_type else "N/A"
+                    "deposit_type": slip.transaction_type.value if slip.transaction_type else "N/A"
                 }
 
         elif is_receipt:

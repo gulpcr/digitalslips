@@ -137,9 +137,15 @@ export const CardFooter: React.FC<CardFooterProps> = ({
   );
 };
 
-// Compound component
-Card.Header = CardHeader;
-Card.Body = CardBody;
-Card.Footer = CardFooter;
+// Compound component typing
+type CardComponent = React.FC<CardProps> & {
+  Header: typeof CardHeader;
+  Body: typeof CardBody;
+  Footer: typeof CardFooter;
+};
 
-export default Card;
+(Card as CardComponent).Header = CardHeader;
+(Card as CardComponent).Body = CardBody;
+(Card as CardComponent).Footer = CardFooter;
+
+export default Card as CardComponent;

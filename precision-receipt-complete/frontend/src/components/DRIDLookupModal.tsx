@@ -714,7 +714,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   fullWidth
                   onClick={handleVerify}
                   loading={loading}
-                  disabled={!amountConfirmed || !depositorVerified || (needsInstrumentVerification && !instrumentVerified)}
+                  disabled={!amountConfirmed || !depositorVerified || !!(needsInstrumentVerification && !instrumentVerified)}
                 >
                   Verify & Continue
                 </Button>
@@ -745,7 +745,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
 
                 {!otpSent ? (
                   <Button
-                    variant="accent"
+                    variant="secondary"
                     onClick={handleSendOtp}
                     className="w-full"
                     loading={otpLoading}

@@ -21,7 +21,7 @@ import { Transaction, TransactionListResponse } from '../types';
 import { format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuthStore();
+  useAuthStore();
 
   // State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -410,7 +410,7 @@ const Dashboard: React.FC = () => {
       <DRIDLookupModal
         isOpen={isDRIDModalOpen}
         onClose={() => setIsDRIDModalOpen(false)}
-        onComplete={(transactionId, receiptNumber) => {
+        onComplete={(transactionId) => {
           loadTransactions(1);
           if (transactionId) {
             handleViewReceipt(transactionId);

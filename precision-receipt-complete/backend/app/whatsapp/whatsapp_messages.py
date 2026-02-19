@@ -395,13 +395,11 @@ Select the cheque clearing type:
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-1️⃣  🏙️  *Local Cheque*
-      _Same city - 1 day clearing_
-      _Fee: PKR 50_
+1️⃣  🏙️  *Meezan Bank Cheque*
+      _Same bank - 1 day clearing_
 
-2️⃣  🌍  *Inter-City Cheque*
-      _Different city - 3 days clearing_
-      _Fee: PKR 150_
+2️⃣  🏦  *Other Bank Cheque*
+      _Different bank - 3 days clearing_
 
 ━━━━━━━━━━━━━━━━━━━━━
 _Reply with option number (1-2)_
@@ -421,12 +419,11 @@ _Reply with option number (1-2)_
         account_holder = cheque_data.get('cheque_account_holder_name') or 'N/A'
         clearing_type = cheque_data.get('cheque_clearing_type', 'LOCAL')
         clearing_days = cheque_data.get('cheque_clearing_days', 1)
-        processing_fee = cheque_data.get('cheque_processing_fee', 50)
 
         amount_str = WhatsAppMessages.format_amount(amount_figures) if amount_figures else 'N/A'
 
         sig_status = "✅ Present" if signature == 'present' else "❌ Missing" if signature == 'missing' else "⚠️ Unclear"
-        clearing_label = "🏙️ Local" if clearing_type == 'LOCAL' else "🌍 Inter-City"
+        clearing_label = "🏙️ Meezan Bank" if clearing_type == 'LOCAL' else "🏦 Other Bank"
 
         return f"""
 ╭─────────────────────────╮
@@ -447,7 +444,6 @@ _AI-extracted information:_
 ✍️ *Signature:* {sig_status}
 ━━━━━━━━━━━━━━━━━━━━━
 ⏱️ *Clearing:* {clearing_label} ({clearing_days} {'day' if clearing_days == 1 else 'days'})
-💵 *Fee:* PKR {processing_fee}
 ━━━━━━━━━━━━━━━━━━━━━
 
 *Please review and confirm:*

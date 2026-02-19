@@ -170,10 +170,17 @@ export const TableCell: React.FC<TableCellProps> = ({
   );
 };
 
-// Compound component
-Table.Head = TableHead;
-Table.Body = TableBody;
-Table.Row = TableRow;
-Table.Cell = TableCell;
+// Compound component typing
+type TableComponent = React.FC<TableProps> & {
+  Head: typeof TableHead;
+  Body: typeof TableBody;
+  Row: typeof TableRow;
+  Cell: typeof TableCell;
+};
 
-export default Table;
+(Table as unknown as TableComponent).Head = TableHead;
+(Table as unknown as TableComponent).Body = TableBody;
+(Table as unknown as TableComponent).Row = TableRow;
+(Table as unknown as TableComponent).Cell = TableCell;
+
+export default Table as unknown as TableComponent;

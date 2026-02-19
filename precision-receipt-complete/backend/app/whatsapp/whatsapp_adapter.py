@@ -214,7 +214,9 @@ class WhatsAppAdapter:
 
     async def _send_qr_code_to_customer(self, phone_number: str, drid: str, qr_url: str) -> bool:
         """
-        Send QR code image to customer via WhatsApp
+        Send QR code image to customer via WhatsApp.
+        Tries media attachment first, falls back to text with link if media fails
+        (e.g. Twilio WhatsApp Sandbox does not support media).
 
         Args:
             phone_number: Customer's phone number (may have whatsapp: prefix)
@@ -246,17 +248,44 @@ class WhatsAppAdapter:
 
             from_whatsapp = f"whatsapp:{settings.TWILIO_PHONE_NUMBER}"
 
-            # Send QR code image with caption
-            message_body = f"📱 *Show this QR code at the branch*\n\nThe teller can scan this QR code to retrieve your deposit slip instantly.\n\n*DRID:* `{drid}`"
+            # Build verification page URL
+            base_url = settings.PUBLIC_URL if settings.PUBLIC_URL else 'http://localhost:9001'
+            verify_url = f"{base_url}/verify/{drid}"
+
+            # Twilio sandbox (+14155238886) does not support media - send text with links
+            # For production WhatsApp Business API, media_url can be used
+            is_sandbox = settings.TWILIO_PHONE_NUMBER == "+14155238886"
+
+            if not is_sandbox:
+                try:
+                    msg = client.messages.create(
+                        body=f"📱 *Show this QR code at the branch*\n\nThe teller can scan this QR code to retrieve your deposit slip instantly.\n\n*DRID:* `{drid}`",
+                        from_=from_whatsapp,
+                        to=to_whatsapp,
+                        media_url=[qr_url]
+                    )
+                    logger.info(f"QR code sent with media to {phone_number}, Message SID: {msg.sid}")
+                    return True
+                except Exception as media_err:
+                    logger.warning(f"Media message failed ({media_err}), falling back to text")
+
+            # Send QR code as clickable links (works on sandbox and production)
+            message_body = (
+                f"📱 *Your Digital Deposit Slip QR Code*\n\n"
+                f"Show this to the teller or let them scan it:\n\n"
+                f"🔗 *QR Code:* {qr_url}\n\n"
+                f"🔗 *Verify:* {verify_url}\n\n"
+                f"*DRID:* `{drid}`\n\n"
+                f"_The teller can use this link to retrieve your deposit slip instantly._"
+            )
 
             msg = client.messages.create(
                 body=message_body,
                 from_=from_whatsapp,
-                to=to_whatsapp,
-                media_url=[qr_url]
+                to=to_whatsapp
             )
 
-            logger.info(f"QR code sent to {phone_number}, Message SID: {msg.sid}")
+            logger.info(f"QR code link sent to {phone_number}, Message SID: {msg.sid}")
             return True
 
         except Exception as e:
@@ -1151,6 +1180,19 @@ _Reply with the option number_"""
                 logger.error(f"Cheque OCR error: {error}")
                 return self.messages.CHEQUE_OCR_FAILED
 
+            # Save cheque image to disk for teller preview
+            cheque_image_url = None
+            if image_bytes:
+                import uuid
+                os.makedirs("uploads/cheques", exist_ok=True)
+                image_filename = f"cheque_{uuid.uuid4().hex[:12]}.jpg"
+                image_path = f"uploads/cheques/{image_filename}"
+                with open(image_path, "wb") as f:
+                    f.write(image_bytes)
+                public_url = os.environ.get("PUBLIC_URL", "").rstrip("/")
+                cheque_image_url = f"{public_url}/uploads/cheques/{image_filename}"
+                logger.info(f"Saved cheque image: {cheque_image_url}")
+
             # Store cheque data with keys matching frontend expectations
             session.data['cheque_data'] = {
                 'cheque_number': cheque_data.cheque_number,
@@ -1163,7 +1205,8 @@ _Reply with the option number_"""
                 'cheque_account_holder_name': cheque_data.account_holder_name,
                 'cheque_account_number': cheque_data.account_number,
                 'cheque_signature_status': cheque_data.signature_status,
-                'cheque_signature_verified': cheque_data.signature_verified
+                'cheque_signature_verified': cheque_data.signature_verified,
+                'cheque_image': cheque_image_url
             }
 
             # Store amount from cheque
@@ -1187,15 +1230,13 @@ _Reply with the option number_"""
     ) -> str:
         """Handle cheque clearing type selection"""
         if message == '1':
-            # Local cheque
+            # Meezan Bank cheque
             clearing_type = 'LOCAL'
             clearing_days = 1
-            processing_fee = 50
         elif message == '2':
-            # Inter-city cheque
-            clearing_type = 'INTER_CITY'
+            # Other Bank cheque
+            clearing_type = 'OTHER_BANK'
             clearing_days = 3
-            processing_fee = 150
         else:
             return self.messages.INVALID_OPTION + "\n" + self.messages.CHEQUE_CLEARING_TYPE_REQUEST
 
@@ -1205,7 +1246,6 @@ _Reply with the option number_"""
 
         session.data['cheque_data']['cheque_clearing_type'] = clearing_type
         session.data['cheque_data']['cheque_clearing_days'] = clearing_days
-        session.data['cheque_data']['cheque_processing_fee'] = processing_fee
 
         # Move to confirmation
         session.state = SessionState.CHEQUE_CONFIRMATION
@@ -1393,13 +1433,11 @@ _Reply with the option number_"""
         if message == '1':
             clearing_type = 'LOCAL'
             clearing_days = 1
-            processing_fee = 50
-            label = "Local (1 day)"
+            label = "Meezan Bank (1 day)"
         elif message == '2':
-            clearing_type = 'INTER_CITY'
+            clearing_type = 'OTHER_BANK'
             clearing_days = 3
-            processing_fee = 150
-            label = "Inter-City (3 days)"
+            label = "Other Bank (3 days)"
         else:
             return self.messages.INVALID_OPTION + "\n" + self.messages.CHEQUE_CLEARING_TYPE_REQUEST
 
@@ -1407,11 +1445,10 @@ _Reply with the option number_"""
         cheque_data = session.data.get('cheque_data', {})
         cheque_data['cheque_clearing_type'] = clearing_type
         cheque_data['cheque_clearing_days'] = clearing_days
-        cheque_data['cheque_processing_fee'] = processing_fee
         session.data['cheque_data'] = cheque_data
 
         session.state = SessionState.CHEQUE_EDIT_MENU
-        return f"✅ Clearing type updated to: {label}\n   Fee: PKR {processing_fee}\n\n" + self.messages.CHEQUE_EDIT_MENU
+        return f"✅ Clearing type updated to: {label}\n\n" + self.messages.CHEQUE_EDIT_MENU
 
     # ============================================
     # PAY ORDER HANDLERS

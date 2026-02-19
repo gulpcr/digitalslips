@@ -22,7 +22,7 @@ class QRService:
     """QR Code generation service"""
 
     # Default fallback URL (used when PUBLIC_URL is not configured)
-    DEFAULT_VERIFICATION_URL = "https://verify.meezanbank.com/receipt"
+    DEFAULT_VERIFICATION_URL = "https://rcpt-demo.edimensionz.com/verify"
 
     @staticmethod
     def get_verification_base_url() -> str:

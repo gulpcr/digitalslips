@@ -127,7 +127,7 @@ const StatusPieChart: React.FC<StatusPieChartProps> = ({ data, loading = false }
               borderRadius: '8px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             }}
-            formatter={(value: number, name: string, props: { payload: { amount: number } }) => {
+            formatter={(value: number, name: string, props: any) => {
               return [
                 <span key="value">
                   {value.toLocaleString()} transactions
