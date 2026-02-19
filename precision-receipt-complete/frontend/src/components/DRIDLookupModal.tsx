@@ -3,8 +3,8 @@
  * Teller interface to retrieve and process deposit slips by DRID
  */
 
-import React, { useState } from 'react';
-import { FiX, FiSearch, FiCheck, FiAlertCircle, FiClock, FiUser, FiDollarSign, FiFileText, FiCheckCircle, FiXCircle, FiImage } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiX, FiSearch, FiCheck, FiAlertCircle, FiClock, FiUser, FiDollarSign, FiFileText, FiCheckCircle, FiXCircle, FiImage, FiZap } from 'react-icons/fi';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import Input from './ui/Input';
@@ -34,6 +34,10 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
   const [depositSlip, setDepositSlip] = useState<DepositSlipResponse | null>(null);
   const [validationResult, setValidationResult] = useState<DepositSlipRetrieveResponse['validation_result'] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scanMode, setScanMode] = useState(false); // Quick scan mode for continuous scanning
+
+  // Ref for DRID input auto-focus
+  const dridInputRef = useRef<HTMLInputElement>(null);
 
   // Verification form state
   const [amountConfirmed, setAmountConfirmed] = useState(false);
@@ -58,6 +62,46 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
   const [otpLoading, setOtpLoading] = useState(false);
   const [maskedPhone, setMaskedPhone] = useState('');
 
+  // Auto-focus DRID input when modal opens or returns to lookup
+  useEffect(() => {
+    if (isOpen && step === 'lookup' && dridInputRef.current) {
+      // Small delay to ensure modal is rendered
+      setTimeout(() => {
+        dridInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isOpen, step]);
+
+  // Keyboard shortcuts for scan mode
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S = Toggle Scan Mode
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        setScanMode(prev => {
+          const newMode = !prev;
+          if (newMode) {
+            toast.success('Scan Mode ON', { icon: '⚡' });
+          }
+          return newMode;
+        });
+        setTimeout(() => dridInputRef.current?.focus(), 100);
+      }
+
+      // Ctrl/Cmd + N = Next Customer (when in success step)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n' && step === 'success' && scanMode) {
+        e.preventDefault();
+        quickReset();
+        toast.success('Ready for next customer', { icon: '👤' });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isOpen, step, scanMode]);
+
   const resetModal = () => {
     setStep('lookup');
     setDrid('');
@@ -77,6 +121,28 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
     setOtpError('');
     setOtpLoading(false);
     setMaskedPhone('');
+  };
+
+  const quickReset = () => {
+    // Quick reset for continuous scanning - keeps scan mode active
+    setDrid('');
+    setStep('lookup');
+    setDepositSlip(null);
+    setValidationResult(null);
+    setError(null);
+    setAmountConfirmed(false);
+    setDepositorVerified(false);
+    setInstrumentVerified(false);
+    setVerifyNotes('');
+    setAuthorizationCaptured(false);
+    setTellerNotes('');
+    setCompletionResult(null);
+    setOtp('');
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpError('');
+    // Keep modal open, focus input for next scan
+    setTimeout(() => dridInputRef.current?.focus(), 100);
   };
 
   const handleSendOtp = async () => {
@@ -258,16 +324,31 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <Card padding="lg">
+          {/* Scan Mode Banner */}
+          {scanMode && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-accent to-accent-dark rounded-lg text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FiZap className="w-5 h-5 animate-pulse" />
+                  <span className="font-semibold">⚡ Quick Scan Mode Active</span>
+                </div>
+                <span className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded">
+                  Scanner Ready
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold text-primary">DRID Transaction</h2>
               <p className="text-sm text-text-secondary mt-1">
-                {step === 'lookup' && 'Enter customer DRID to retrieve deposit slip'}
+                {step === 'lookup' && (scanMode ? '⚡ Scan QR code or enter DRID' : 'Enter customer DRID to retrieve deposit slip')}
                 {step === 'retrieved' && 'Review and verify transaction details'}
                 {step === 'verify' && 'Confirm verification'}
                 {step === 'complete' && 'Capture authorization and complete'}
-                {step === 'success' && 'Transaction completed successfully'}
+                {step === 'success' && (scanMode ? '✅ Completed - Ready for next scan' : 'Transaction completed successfully')}
               </p>
             </div>
             <button
@@ -289,15 +370,17 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                 className="flex gap-3 mb-6"
               >
                 <Input
-                  placeholder="Enter DRID (e.g., DRID-20240128-ABC123)"
+                  ref={dridInputRef}
+                  placeholder={scanMode ? "🔍 Scan QR code or type DRID..." : "Enter DRID (e.g., DRID-20240128-ABC123)"}
                   value={drid}
                   onChange={(e) => {
                     setDrid(e.target.value.toUpperCase());
                     setError(null);
                   }}
-                  leftIcon={<FiSearch />}
+                  leftIcon={scanMode ? <FiZap className="text-accent animate-pulse" /> : <FiSearch />}
                   fullWidth
                   autoFocus
+                  className={scanMode ? "ring-2 ring-accent" : ""}
                 />
                 <Button
                   variant="primary"
@@ -305,6 +388,20 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   loading={loading}
                 >
                   Retrieve
+                </Button>
+                <Button
+                  variant={scanMode ? "accent" : "outline"}
+                  type="button"
+                  onClick={() => {
+                    setScanMode(!scanMode);
+                    if (!scanMode) {
+                      toast.success('Scan Mode ON - Scanner ready!', { icon: '⚡' });
+                    }
+                    setTimeout(() => dridInputRef.current?.focus(), 100);
+                  }}
+                  title="Enable continuous scanning mode"
+                >
+                  {scanMode ? <><FiZap className="w-4 h-4" /> ON</> : 'Scan Mode'}
                 </Button>
               </form>
 
@@ -333,14 +430,39 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                 </div>
               )}
 
+              {scanMode && (
+                <div className="mb-4 p-4 bg-accent-50 border-2 border-accent rounded-lg animate-pulse-slow">
+                  <div className="flex items-center gap-2 text-accent font-semibold mb-2">
+                    <FiZap className="w-5 h-5" />
+                    <span>Scan Mode Active</span>
+                  </div>
+                  <p className="text-sm text-text-secondary">
+                    Scanner is ready. Simply scan customer's QR code - the DRID will auto-populate and retrieve.
+                  </p>
+                </div>
+              )}
+
               <div className="mt-6 p-4 bg-background-light rounded-lg">
-                <h3 className="font-medium text-text-primary mb-2">Instructions</h3>
+                <h3 className="font-medium text-text-primary mb-2">
+                  {scanMode ? '⚡ Quick Scan Instructions' : 'Instructions'}
+                </h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-text-secondary">
-                  <li>Ask customer for their Digital Reference ID (DRID)</li>
-                  <li>Enter the DRID above and click Retrieve</li>
-                  <li>Verify the pre-filled details with the customer</li>
-                  <li>Count cash/verify instrument and confirm amount</li>
-                  <li>Capture customer authorization and complete transaction</li>
+                  {scanMode ? (
+                    <>
+                      <li>Click "Scan Mode" button (turns green)</li>
+                      <li>Ask customer to show WhatsApp QR code</li>
+                      <li>Scan QR code - DRID auto-retrieves ⚡</li>
+                      <li>Verify details → Complete → Next Customer</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Ask customer for their Digital Reference ID (DRID)</li>
+                      <li>Enter the DRID or scan QR code</li>
+                      <li>Verify the pre-filled details with the customer</li>
+                      <li>Count cash/verify instrument and confirm amount</li>
+                      <li>Capture customer authorization and complete transaction</li>
+                    </>
+                  )}
                 </ol>
               </div>
             </div>
@@ -751,14 +873,39 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <Button variant="outline" fullWidth onClick={handleClose}>
-                  Close
-                </Button>
-                <Button variant="primary" fullWidth onClick={handleViewReceipt}>
-                  View Receipt
-                </Button>
-              </div>
+              {scanMode ? (
+                <div className="space-y-3">
+                  <Button
+                    variant="accent"
+                    fullWidth
+                    size="lg"
+                    onClick={quickReset}
+                    leftIcon={<FiZap />}
+                  >
+                    Next Customer ⚡
+                  </Button>
+                  <div className="flex gap-3">
+                    <Button variant="outline" fullWidth onClick={handleViewReceipt}>
+                      View Receipt
+                    </Button>
+                    <Button variant="outline" fullWidth onClick={handleClose}>
+                      Exit Scan Mode
+                    </Button>
+                  </div>
+                  <p className="text-xs text-text-secondary text-center">
+                    💡 Tip: Press Ctrl+N for next customer
+                  </p>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <Button variant="outline" fullWidth onClick={handleClose}>
+                    Close
+                  </Button>
+                  <Button variant="primary" fullWidth onClick={handleViewReceipt}>
+                    View Receipt
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </Card>
