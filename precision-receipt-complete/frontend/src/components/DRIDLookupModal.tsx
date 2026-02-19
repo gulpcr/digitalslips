@@ -209,6 +209,26 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
       return;
     }
 
+    // Extract DRID from QR code JSON or raw text
+    let lookupDrid = drid.trim();
+    // QR codes encode full JSON - extract the drid field
+    if (lookupDrid.includes('"drid"') || lookupDrid.includes('"DRID"') || lookupDrid.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(lookupDrid);
+        if (parsed.drid) {
+          lookupDrid = parsed.drid;
+          setDrid(lookupDrid.toUpperCase());
+        }
+      } catch {
+        // Try to extract DRID pattern from raw text
+        const match = lookupDrid.match(/DRID-[\w-]+/i);
+        if (match) {
+          lookupDrid = match[0];
+          setDrid(lookupDrid.toUpperCase());
+        }
+      }
+    }
+
     // Check if user is authenticated
     const token = localStorage.getItem('access_token');
     if (!token) {
@@ -219,7 +239,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await depositSlipService.retrieve(drid.trim().toUpperCase());
+      const response = await depositSlipService.retrieve(lookupDrid.toUpperCase());
 
       if (!response.success) {
         toast.error(response.message);
@@ -374,8 +394,17 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   placeholder={scanMode ? "🔍 Scan QR code or type DRID..." : "Enter DRID (e.g., DRID-20240128-ABC123)"}
                   value={drid}
                   onChange={(e) => {
-                    setDrid(e.target.value.toUpperCase());
+                    const value = e.target.value;
+                    setDrid(value);
                     setError(null);
+                    // Auto-retrieve when a valid DRID pattern is detected
+                    const dridMatch = value.match(/^DRID-\d{8}-[A-Z0-9]{6}$/i);
+                    if (dridMatch) {
+                      setTimeout(() => {
+                        const form = e.target.closest('form');
+                        if (form) form.requestSubmit();
+                      }, 100);
+                    }
                   }}
                   leftIcon={scanMode ? <FiZap className="text-accent animate-pulse" /> : <FiSearch />}
                   fullWidth
@@ -390,7 +419,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   Retrieve
                 </Button>
                 <Button
-                  variant={scanMode ? "accent" : "outline"}
+                  variant={scanMode ? "primary" : "outline"}
                   type="button"
                   onClick={() => {
                     setScanMode(!scanMode);
@@ -876,7 +905,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
               {scanMode ? (
                 <div className="space-y-3">
                   <Button
-                    variant="accent"
+                    variant="primary"
                     fullWidth
                     size="lg"
                     onClick={quickReset}

@@ -39,15 +39,8 @@ class DRIDService:
 
     @staticmethod
     def generate_qr_code_for_drid(drid: str, amount: Decimal, customer_name: str) -> str:
-        """Generate QR code data for branch retrieval"""
-        qr_data = {
-            "type": "DRID",
-            "drid": drid,
-            "amount": str(amount),
-            "customer": customer_name,
-            "generated_at": datetime.utcnow().isoformat(),
-        }
-        return QRService.generate_qr_code_base64(qr_data)
+        """Generate QR code containing just the DRID string for easy scanning"""
+        return QRService.generate_qr_code_base64(drid)
 
     @staticmethod
     def create_deposit_slip(

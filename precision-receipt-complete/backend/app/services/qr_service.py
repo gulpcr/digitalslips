@@ -75,7 +75,7 @@ class QRService:
         return qr_data
 
     @staticmethod
-    def generate_qr_code_base64(data: dict) -> str:
+    def generate_qr_code_base64(data) -> str:
         """Generate QR code as base64 encoded PNG"""
         try:
             # Create QR code
@@ -86,8 +86,8 @@ class QRService:
                 border=4,
             )
 
-            # Add data as JSON string
-            qr.add_data(json.dumps(data))
+            # Add data - use raw string if given, otherwise JSON encode
+            qr.add_data(data if isinstance(data, str) else json.dumps(data))
             qr.make(fit=True)
 
             # Create image
