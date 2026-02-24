@@ -88,6 +88,7 @@ class TransactionStatus(str, enum.Enum):
 
 class Channel(str, enum.Enum):
     WHATSAPP = "WHATSAPP"
+    SMS = "SMS"
     WEB = "WEB"
     MOBILE = "MOBILE"
     USSD = "USSD"
