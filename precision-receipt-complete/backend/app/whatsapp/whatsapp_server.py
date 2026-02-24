@@ -456,6 +456,69 @@ def build_twiml_response(message: str) -> str:
 </Response>"""
 
 
+@app.post("/sms/webhook")
+async def sms_webhook_receive(
+    request: Request,
+    db: Session = Depends(get_db),
+    Body: Optional[str] = Form(None),
+    From: Optional[str] = Form(None),
+    To: Optional[str] = Form(None),
+    MessageSid: Optional[str] = Form(None),
+):
+    """
+    Receive incoming SMS messages from Twilio
+
+    Twilio sends:
+    - Body: Message text
+    - From: Sender phone (+923001234567)
+    - To: Your Twilio SMS number
+    - MessageSid: Unique message ID
+    """
+    try:
+        # Log incoming message
+        logger.info(f"Incoming SMS from {From}: {Body[:50] if Body else '[empty]'}...")
+
+        # Validate required fields
+        if not From:
+            logger.error("Missing 'From' field in SMS webhook")
+            raise HTTPException(status_code=400, detail="Missing sender phone number")
+
+        # Import SMS adapter
+        from app.sms.sms_adapter import SMSAdapter
+
+        # Create adapter with database session
+        adapter = SMSAdapter(db=db, session_manager=session_manager)
+
+        # Process message (SMS doesn't support media)
+        response_text = await adapter.process_message(
+            phone_number=From,
+            message_text=Body or "",
+            media_url=None  # SMS doesn't support media in webhook
+        )
+
+        # Build TwiML response
+        twiml_response = build_twiml_response(response_text)
+
+        logger.info(f"Sending SMS response to {From}: {response_text[:50]}...")
+
+        return Response(
+            content=twiml_response,
+            media_type="application/xml"
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing SMS webhook: {e}", exc_info=True)
+
+        # Return error response in TwiML format
+        error_twiml = build_twiml_response(
+            "We encountered an error. Please try again later or send HI to restart."
+        )
+        return Response(
+            content=error_twiml,
+            media_type="application/xml"
+        )
+
+
 @app.post("/whatsapp/status")
 async def webhook_status(
     request: Request,

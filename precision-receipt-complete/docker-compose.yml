@@ -13,7 +13,7 @@ services:
       POSTGRES_DB: precision_receipt
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5433:5432"   # optional, can be removed in prod
+      - "5434:5432"   # Changed from 5433 to avoid conflict
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
