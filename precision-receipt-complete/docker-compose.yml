@@ -132,6 +132,7 @@ services:
     volumes:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
+      - ./frontend/dist:/app/frontend_dist:ro
     networks:
       - precision-network
     restart: unless-stopped

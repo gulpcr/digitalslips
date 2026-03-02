@@ -6,12 +6,14 @@ Maps SMS input to existing DRID flow services
 
 import logging
 import os
+import re
 import base64
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass, field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -151,9 +153,9 @@ class SessionManager:
 
     def _normalize_phone(self, phone: str) -> str:
         """Normalize phone number for consistent lookup"""
-        # Remove 'sms:' prefix if present
+        # Remove 'sms:' prefix if present ('sms:' is 4 chars)
         if phone.startswith('sms:'):
-            phone = phone[9:]
+            phone = phone[4:]
         # Strip whitespace
         phone = phone.strip()
         # Remove + prefix
@@ -239,17 +241,18 @@ class SMSAdapter:
 
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
-            # Format phone numbers
+            # Format phone numbers (Twilio SMS uses plain E.164, no 'sms:' prefix)
             phone = phone_number
             if phone.startswith('sms:'):
-                to_sms = phone
-            else:
-                # Normalize phone
-                if not phone.startswith('+'):
-                    phone = f"+{phone}"
-                to_sms = f"sms:{phone}"
+                phone = phone[4:]
+            phone = phone.strip()
+            if not phone.startswith('+'):
+                phone = f"+{phone}"
+            to_sms = phone
 
-            from_sms = f"sms:{settings.TWILIO_PHONE_NUMBER}"
+            # Use the dedicated SMS number (not the WhatsApp number)
+            sms_from = settings.TWILIO_SMS_PHONE_NUMBER or settings.TWILIO_PHONE_NUMBER
+            from_sms = sms_from if sms_from.startswith('+') else f"+{sms_from}"
 
             # Send QR code image with caption
             message_body = f"📱 *Show this QR code at the branch*\n\nThe teller can scan this QR code to retrieve your deposit slip instantly.\n\n*DRID:* `{drid}`"
@@ -359,6 +362,13 @@ class SMSAdapter:
             SessionState.CUSTOMER_NOT_FOUND_OPTIONS: self._handle_customer_not_found_options,
             SessionState.CONFIRM_OVERWRITE: self._handle_confirm_overwrite,
             SessionState.CUSTOMER_SELECTION: self._handle_customer_selection,
+            SessionState.CHEQUE_ACCOUNT_SELECTION: self._handle_cheque_account_selection,
+            SessionState.CHEQUE_EDIT_MENU: self._handle_cheque_edit_menu,
+            SessionState.CHEQUE_EDIT_AMOUNT: self._handle_cheque_edit_amount,
+            SessionState.CHEQUE_EDIT_PAYEE: self._handle_cheque_edit_payee,
+            SessionState.CHEQUE_EDIT_DATE: self._handle_cheque_edit_date,
+            SessionState.CHEQUE_EDIT_CHEQUE_NUMBER: self._handle_cheque_edit_cheque_number,
+            SessionState.CHEQUE_EDIT_CLEARING_TYPE: self._handle_cheque_edit_clearing_type,
         }
 
         handler = state_handlers.get(session.state)
@@ -494,6 +504,19 @@ class SMSAdapter:
                 customers.extend(found)
                 break
 
+        # Fallback: normalize both sides to digits only to handle stored formats
+        # like +92-3XX-XXXXXXX that exact match won't catch
+        if not customers:
+            digits_set = list({re.sub(r'[^0-9]', '', v) for v in phone_variants})
+            logger.info(f"Exact match failed, trying normalized digits: {digits_set}")
+            for digits in digits_set:
+                found = self.db.query(Customer).filter(
+                    func.regexp_replace(Customer.phone, '[^0-9]', '', 'g') == digits
+                ).all()
+                if found:
+                    customers.extend(found)
+                    break
+
         if not customers:
             logger.info("Customer NOT FOUND in database")
             session.state = SessionState.CUSTOMER_NOT_FOUND_OPTIONS
@@ -557,9 +580,9 @@ class SMSAdapter:
 
     def _get_phone_variants(self, phone: str) -> List[str]:
         """Generate phone number variants for lookup"""
-        # Normalize: remove sms prefix and +
+        # Normalize: remove sms prefix ('sms:' is 4 chars) and +
         if phone.startswith('sms:'):
-            phone = phone[9:]
+            phone = phone[4:]
         phone = phone.strip()  # Remove any whitespace
         phone = phone.lstrip('+')
 
@@ -1272,10 +1295,10 @@ _Reply with the option number_"""
             session.state = SessionState.CHEQUE_EDIT_MENU
             return self.messages.CHEQUE_EDIT_MENU
         elif message == '3':
-            # Cancel - re-upload
+            # Cancel - restart cheque manual entry (SMS cannot upload images)
             session.data.pop('cheque_data', None)
-            session.state = SessionState.CHEQUE_IMAGE
-            return self.messages.CHEQUE_IMAGE_REQUEST
+            session.state = SessionState.CHEQUE_MANUAL_CONFIRM
+            return self.messages.CHEQUE_MANUAL_ENTRY
         else:
             return self.messages.INVALID_OPTION + "\n" + self.messages.cheque_details_confirmation(
                 session.data.get('cheque_data', {})

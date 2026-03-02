@@ -18,6 +18,7 @@ import UserManagement from './pages/UserManagement';
 import Reports from './pages/Reports';
 import BranchManagement from './pages/BranchManagement';
 import ReceiptVerification from './pages/ReceiptVerification';
+import MobileDemo from './pages/MobileDemo';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -53,6 +54,8 @@ function App() {
             {/* Demo setup page */}
             <Route path="/demo" element={<DemoSetup />} />
             <Route path="/setup" element={<DemoSetup />} />
+            {/* Bank Islami CIO Mobile Demo */}
+            <Route path="/demo/mobile" element={<MobileDemo />} />
             {/* Admin pages */}
             <Route path="/admin/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
             <Route path="/admin/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />

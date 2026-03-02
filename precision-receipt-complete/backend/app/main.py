@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
+import json
 import logging
 import time
 import os
@@ -125,13 +126,27 @@ async def add_process_time_header(request: Request, call_next):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
+    def _safe(v):
+        if isinstance(v, Exception):
+            return str(v)
+        if isinstance(v, (list, tuple)):
+            return [_safe(i) for i in v]
+        if isinstance(v, dict):
+            return {k: _safe(val) for k, val in v.items()}
+        try:
+            json.dumps(v)
+            return v
+        except (TypeError, ValueError):
+            return str(v)
+
+    safe_errors = [_safe(e) for e in exc.errors()]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
             "message": "Validation error",
-            "errors": exc.errors(),
-            "body": exc.body
+            "errors": safe_errors,
+            "body": str(exc.body) if exc.body else None
         }
     )
 

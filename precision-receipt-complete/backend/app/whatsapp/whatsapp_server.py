@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
-from fastapi.responses import Response, PlainTextResponse, HTMLResponse
+from fastapi.responses import Response, PlainTextResponse, HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from app.core.config import settings
 from app.core.database import SessionLocal, init_db
 from app.whatsapp.whatsapp_adapter import WhatsAppAdapter, SessionManager
+from app.sms.sms_adapter import SessionManager as SMSSessionManager
 
 # Configure logging
 logging.basicConfig(
@@ -53,8 +54,9 @@ os.makedirs("uploads", exist_ok=True)
 os.makedirs("uploads/qrcodes", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Global session manager (shared across requests)
-session_manager = SessionManager()
+# Separate session managers for each channel to prevent state collisions
+session_manager = SessionManager()        # WhatsApp sessions
+sms_session_manager = SMSSessionManager() # SMS sessions
 
 
 def get_db():
@@ -486,8 +488,8 @@ async def sms_webhook_receive(
         # Import SMS adapter
         from app.sms.sms_adapter import SMSAdapter
 
-        # Create adapter with database session
-        adapter = SMSAdapter(db=db, session_manager=session_manager)
+        # Create adapter with the dedicated SMS session manager
+        adapter = SMSAdapter(db=db, session_manager=sms_session_manager)
 
         # Process message (SMS doesn't support media)
         response_text = await adapter.process_message(
@@ -692,6 +694,53 @@ async def send_whatsapp_message(phone_number: str, message: str, media_url: Opti
     except Exception as e:
         logger.error(f"Error sending WhatsApp: {e}")
         return False
+
+
+# ============================================
+# FRONTEND SPA SERVING
+# Serve the React app from port 9001 so a single
+# ngrok tunnel covers both webhooks and /demo/mobile.
+# Priority order for locating the built frontend:
+#   1. /app/frontend_dist  (Docker volume mount)
+#   2. ../frontend/dist    (relative to backend/ CWD)
+#   3. ../../../frontend/dist (relative to this file)
+# Run: cd frontend && npm run build  before starting.
+# ============================================
+
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_FRONTEND_CANDIDATES = [
+    "/app/frontend_dist",                                         # Docker volume
+    os.path.join(os.getcwd(), "..", "frontend", "dist"),          # CWD = backend/
+    os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "..", "frontend", "dist")),  # relative to file
+]
+_FRONTEND_DIST = next((p for p in _FRONTEND_CANDIDATES if os.path.isfile(os.path.join(p, "index.html"))), None)
+
+if _FRONTEND_DIST:
+    logger.info(f"Serving frontend from: {_FRONTEND_DIST}")
+    _assets_dir = os.path.join(_FRONTEND_DIST, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="frontend-assets")
+else:
+    logger.warning("Frontend dist not found. Run: cd frontend && npm run build")
+
+
+@app.get("/{full_path:path}")
+async def serve_frontend_spa(full_path: str):
+    """
+    Catch-all: serve the React SPA for any path not matched by an API route.
+    This enables /demo/mobile (and all other React routes) on port 9001.
+    """
+    if _FRONTEND_DIST:
+        # Serve known static files directly (favicon, manifest, etc.)
+        static_file = os.path.join(_FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(static_file):
+            return FileResponse(static_file)
+        # All other paths → index.html (React Router handles routing client-side)
+        return FileResponse(os.path.join(_FRONTEND_DIST, "index.html"), media_type="text/html")
+    return PlainTextResponse(
+        "Frontend not built. Run: cd frontend && npm run build",
+        status_code=404,
+    )
 
 
 # ============================================

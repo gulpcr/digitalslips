@@ -380,6 +380,51 @@ Options:
 
 Reply with option number (1-2)"""
 
+    CHEQUE_EDIT_MENU = """CHEQUE DETAILS - EDIT
+
+What would you like to edit?
+
+1. Amount
+2. Payee Name
+3. Cheque Date
+4. Cheque Number
+5. Clearing Type
+6. Done (confirm details)
+
+Reply with option number (1-6)"""
+
+    @staticmethod
+    def cheque_details_confirmation(cheque_data: dict) -> str:
+        """Generate cheque details confirmation message"""
+        amount = cheque_data.get('cheque_amount_in_figures', 'N/A')
+        payee = cheque_data.get('cheque_payee_name', 'N/A')
+        date = cheque_data.get('cheque_date', 'N/A')
+        number = cheque_data.get('cheque_number', 'N/A')
+        bank = cheque_data.get('cheque_bank', 'N/A')
+        clearing = cheque_data.get('cheque_clearing_type', 'LOCAL')
+        days = cheque_data.get('cheque_clearing_days', 1)
+        fee = cheque_data.get('cheque_processing_fee', 50)
+
+        try:
+            amount_str = f"PKR {float(amount):,.2f}" if amount != 'N/A' else 'N/A'
+        except (ValueError, TypeError):
+            amount_str = str(amount)
+
+        return f"""CHEQUE DETAILS
+
+Amount: {amount_str}
+Payee: {payee}
+Date: {date}
+Cheque No: {number}
+Bank: {bank}
+Clearing: {clearing} ({days} {'day' if days == 1 else 'days'}, Fee: PKR {fee})
+
+1. Confirm details
+2. Edit details
+3. Cancel
+
+Reply with option number (1-3)"""
+
     CANCELLED = """Transaction cancelled. Send HI to start a new deposit slip."""
 
     ACCOUNT_SERVICES_PLACEHOLDER = """Account Services will be available soon. Send HI for main menu."""
