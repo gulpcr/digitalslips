@@ -435,7 +435,7 @@
           </div>
           <div class="dds-detail-card">
             <div class="dds-detail-label">Type</div>
-            <div class="dds-detail-value-sm">${escHtml(slip.transaction_type.replace(/_/g, ' '))}</div>
+            <div class="dds-detail-value-sm">${escHtml((slip.transaction_type || 'N/A').replace(/_/g, ' '))}</div>
           </div>
         </div>
 
