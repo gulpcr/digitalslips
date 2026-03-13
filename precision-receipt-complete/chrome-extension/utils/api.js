@@ -5,10 +5,21 @@
 const DEFAULT_API_BASE = 'http://localhost:8001';
 
 async function getConfig() {
-  const result = await chrome.storage.local.get(['apiBaseUrl']);
-  return {
-    apiBaseUrl: result.apiBaseUrl || DEFAULT_API_BASE,
-  };
+  const result = await chrome.storage.local.get(['apiBaseUrl', 'digitalSlipsUrl']);
+  let apiBase = result.apiBaseUrl;
+
+  // Auto-detect: if apiBaseUrl is empty, derive from digitalSlipsUrl
+  // In production, nginx on the same origin proxies /api/* to backend
+  if (!apiBase) {
+    const siteUrl = result.digitalSlipsUrl || '';
+    if (siteUrl && !siteUrl.includes('localhost')) {
+      apiBase = siteUrl.replace(/\/$/, '');
+    } else {
+      apiBase = DEFAULT_API_BASE;
+    }
+  }
+
+  return { apiBaseUrl: apiBase };
 }
 
 async function getAuthToken() {

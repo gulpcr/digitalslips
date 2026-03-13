@@ -517,9 +517,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     // Set defaults
     await chrome.storage.local.set({
-      digitalSlipsUrl: 'http://localhost:3080',
+      digitalSlipsUrl: '',
       transactUrl: 'https://transact.meezanbank.com',
-      apiBaseUrl: 'http://localhost:8001',
+      apiBaseUrl: '',
       autoOpenTransact: false,
       brandColor: '#006241',
       widgetPosition: { right: 20, bottom: 20 },

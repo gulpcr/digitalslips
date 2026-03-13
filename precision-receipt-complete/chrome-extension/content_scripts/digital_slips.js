@@ -912,6 +912,22 @@
 
   // ── Initialize ──
 
+  // Auto-detect and save the site URL so background/api.js can derive the API base
+  (async () => {
+    try {
+      const origin = window.location.origin; // e.g. https://rcpt-demo.edimensionz.com
+      const stored = await chrome.storage.local.get(['digitalSlipsUrl', 'apiBaseUrl']);
+      if (!stored.digitalSlipsUrl || stored.digitalSlipsUrl !== origin) {
+        const updates = { digitalSlipsUrl: origin };
+        // For production domains, API is proxied via nginx on same origin
+        if (!origin.includes('localhost')) {
+          updates.apiBaseUrl = origin;
+        }
+        await chrome.storage.local.set(updates);
+      }
+    } catch { /* storage unavailable */ }
+  })();
+
   injectPresenceMarker();
   showPresenceBadge();
   setupSaveDetection();
