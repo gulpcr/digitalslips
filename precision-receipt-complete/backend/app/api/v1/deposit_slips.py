@@ -6,7 +6,7 @@ Implements the pre-branch deposit initiation flow
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -19,7 +19,7 @@ from app.schemas.deposit_slip import (
     DepositSlipCreate, DepositSlipResponse, DepositSlipCreateResponse,
     DepositSlipStatusResponse, DepositSlipRetrieveResponse,
     DepositSlipVerifyRequest, DepositSlipCompleteRequest,
-    DepositSlipCompleteResponse, DepositSlipCancelRequest,
+    DepositSlipCompleteResponse, AMLResultSchema, DepositSlipCancelRequest,
     DepositSlipListResponse
 )
 import logging
@@ -31,8 +31,9 @@ router = APIRouter()
 
 def slip_to_response(slip: DigitalDepositSlip, db: Session = None) -> DepositSlipResponse:
     """Convert DigitalDepositSlip model to response schema"""
-    now = datetime.utcnow()
-    time_remaining = max(0, int((slip.expires_at - now).total_seconds())) if slip.expires_at > now else 0
+    now = datetime.now(timezone.utc)
+    exp = slip.expires_at.replace(tzinfo=timezone.utc) if slip.expires_at.tzinfo is None else slip.expires_at
+    time_remaining = max(0, int((exp - now).total_seconds())) if exp > now else 0
 
     # Get branch name if available
     branch_name = None
@@ -79,6 +80,20 @@ def slip_to_response(slip: DigitalDepositSlip, db: Session = None) -> DepositSli
 
 
 # ============================================
+# SETTINGS ENDPOINT
+# ============================================
+
+@router.get("/settings")
+async def get_deposit_slip_settings():
+    """Return OTP and session configuration for the frontend"""
+    return {
+        "otp_enabled": settings.OTP_ENABLED,
+        "otp_required": settings.OTP_REQUIRED,
+        "session_inactivity_timeout": getattr(settings, 'SESSION_INACTIVITY_TIMEOUT', 900),
+    }
+
+
+# ============================================
 # CUSTOMER-FACING ENDPOINTS (Public/Semi-Public)
 # ============================================
 
@@ -86,18 +101,24 @@ def slip_to_response(slip: DigitalDepositSlip, db: Session = None) -> DepositSli
 async def initiate_deposit_slip(
     slip_data: DepositSlipCreate,
     request: Request,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Customer initiates a Digital Deposit Slip (Pre-Branch)
 
     This is the entry point for customers to create a deposit slip
-    before visiting the branch. No authentication required.
+    before visiting the branch. Authentication is optional (public portal).
+    If a valid token is present, the user is associated with the request.
 
     Returns a DRID (Digital Reference ID) valid for 60 minutes.
     """
     # Get client IP
     client_ip = request.client.host if request.client else None
+    logger.info(
+        f"Deposit slip initiation from IP={client_ip}, "
+        f"user={'authenticated:' + current_user.username if current_user else 'anonymous'}"
+    )
 
     # Get device info from headers
     device_info = {
@@ -396,7 +417,7 @@ async def teller_complete_deposit_slip(
     - Generates Receipt
     - Sends customer notification (WhatsApp & Email)
     """
-    slip, transaction, error = DRIDService.complete_deposit_slip(
+    slip, transaction, error, aml_result = DRIDService.complete_deposit_slip(
         db=db,
         drid=drid,
         teller_id=str(current_user.id),
@@ -426,7 +447,7 @@ async def teller_complete_deposit_slip(
         try:
             customer = db.query(Customer).filter(Customer.id == transaction.customer_id).first()
             if customer:
-                logger.info(f"Sending notifications to account holder: {customer.phone} / {customer.email}")
+                logger.info(f"Sending notifications to account holder: ***{customer.phone[-4:] if customer.phone else 'N/A'} / {customer.email.split('@')[0][:2]}***@{customer.email.split('@')[1] if customer.email and '@' in customer.email else 'N/A'}")
                 await NotificationService.send_transaction_notifications(
                     db=db,
                     transaction=transaction,
@@ -446,7 +467,7 @@ async def teller_complete_deposit_slip(
             # Only send to depositor if they have a phone and it's different from account holder
             if depositor_phone and depositor_phone != customer_phone:
                 try:
-                    logger.info(f"Sending notifications to depositor: {depositor_phone}")
+                    logger.info(f"Sending notifications to depositor: ***{depositor_phone[-4:] if depositor_phone else 'N/A'}")
                     # WhatsApp to depositor
                     if settings.WHATSAPP_ENABLED:
                         await NotificationService.send_receipt_to_channel(
@@ -468,13 +489,142 @@ async def teller_complete_deposit_slip(
                 except Exception as e:
                     logger.error(f"Failed to send depositor notifications: {str(e)}")
 
+    # Build AML response fragment
+    aml_schema = None
+    aml_warning = None
+    if aml_result is not None:
+        aml_schema = AMLResultSchema(
+            fraud_score=aml_result.fraud_score,
+            fraud_flags=aml_result.fraud_flags,
+            is_suspicious=aml_result.is_suspicious,
+            needs_review=aml_result.needs_review,
+            requires_ctr=aml_result.requires_ctr,
+            risk_level=aml_result.risk_level,
+            checked_at=aml_result.checked_at,
+        )
+        if aml_result.requires_ctr:
+            aml_warning = (
+                "CTR REQUIRED: This cash deposit meets the PKR 250,000 reporting threshold. "
+                "A Currency Transaction Report must be filed with FMU."
+            )
+        elif aml_result.is_suspicious:
+            aml_warning = (
+                f"AML ALERT: Transaction flagged as suspicious "
+                f"(score={aml_result.fraud_score:.2f}). "
+                f"Flags: {', '.join(aml_result.fraud_flags)}. "
+                "Supervisor review required."
+            )
+        elif aml_result.needs_review:
+            aml_warning = (
+                f"AML NOTICE: Transaction requires review. "
+                f"Risk level: {aml_result.risk_level}."
+            )
+
     return DepositSlipCompleteResponse(
         success=True,
         message="Transaction completed successfully",
         drid=drid,
         transaction_id=str(transaction.id),
         transaction_reference=transaction.reference_number,
-        receipt_number=receipt_number
+        receipt_number=receipt_number,
+        aml_result=aml_schema,
+        aml_warning=aml_warning,
+    )
+
+
+@router.post("/quick-complete", response_model=DepositSlipCompleteResponse, status_code=status.HTTP_201_CREATED)
+async def quick_complete_deposit_slip(
+    slip_data: DepositSlipCreate,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Quick Complete: create + retrieve + verify + complete in one call.
+    Used by tellers for walk-in customers without a pre-existing DRID.
+    """
+    client_ip = request.client.host if request.client else None
+    device_info = {
+        "user_agent": request.headers.get("user-agent"),
+        "accept_language": request.headers.get("accept-language"),
+    }
+
+    # 1. Create the deposit slip
+    slip, error = DRIDService.create_deposit_slip(
+        db=db,
+        transaction_type=slip_data.transaction_type,
+        customer_cnic=slip_data.customer_cnic,
+        customer_account=slip_data.customer_account,
+        amount=slip_data.amount,
+        currency=slip_data.currency,
+        narration=slip_data.narration,
+        depositor_name=slip_data.depositor_name,
+        depositor_cnic=slip_data.depositor_cnic,
+        depositor_phone=slip_data.depositor_phone,
+        depositor_relationship=slip_data.depositor_relationship,
+        channel=slip_data.channel,
+        device_info=device_info,
+        ip_address=client_ip,
+        additional_data=slip_data.additional_data,
+    )
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
+    teller_id = str(current_user.id)
+    drid = slip.drid
+
+    # 2. Retrieve
+    slip, error = DRIDService.retrieve_deposit_slip(db=db, drid=drid, teller_id=teller_id)
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
+    # 3. Verify
+    slip, error = DRIDService.verify_deposit_slip(
+        db=db, drid=drid, teller_id=teller_id,
+        amount_confirmed=True, depositor_verified=True, instrument_verified=True,
+    )
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
+    # 4. Complete
+    slip, transaction, error, aml_result = DRIDService.complete_deposit_slip(
+        db=db, drid=drid, teller_id=teller_id,
+        authorization_captured=True, teller_notes="Quick Complete (walk-in)",
+    )
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
+    receipt_number = None
+    if transaction and transaction.receipts:
+        receipt_number = transaction.receipts[0].receipt_number
+
+    # Build AML response
+    aml_schema = None
+    aml_warning = None
+    if aml_result is not None:
+        aml_schema = AMLResultSchema(
+            fraud_score=aml_result.fraud_score,
+            fraud_flags=aml_result.fraud_flags,
+            is_suspicious=aml_result.is_suspicious,
+            needs_review=aml_result.needs_review,
+            requires_ctr=aml_result.requires_ctr,
+            risk_level=aml_result.risk_level,
+            checked_at=aml_result.checked_at,
+        )
+        if aml_result.requires_ctr:
+            aml_warning = "CTR REQUIRED: Cash deposit meets PKR 250,000 threshold."
+        elif aml_result.is_suspicious:
+            aml_warning = f"AML ALERT: Suspicious (score={aml_result.fraud_score:.2f})."
+
+    return DepositSlipCompleteResponse(
+        success=True,
+        message="Quick Complete: Transaction created and completed",
+        drid=drid,
+        transaction_id=str(transaction.id),
+        transaction_reference=transaction.reference_number,
+        receipt_number=receipt_number,
+        aml_result=aml_schema,
+        aml_warning=aml_warning,
     )
 
 
@@ -506,7 +656,7 @@ async def teller_reject_deposit_slip(
 
     slip.status = DepositSlipStatus.REJECTED
     slip.rejection_reason = reason
-    slip.cancelled_at = datetime.utcnow()
+    slip.cancelled_at = datetime.now(timezone.utc)
     slip.cancelled_by = current_user.id
 
     db.commit()
@@ -524,7 +674,7 @@ async def teller_reject_deposit_slip(
 # LISTING & SEARCH ENDPOINTS
 # ============================================
 
-@router.get("/", response_model=DepositSlipListResponse)
+@router.get("", response_model=DepositSlipListResponse)
 async def list_deposit_slips(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -573,23 +723,45 @@ async def list_deposit_slips(
 
 @router.get("/pending")
 async def get_pending_deposit_slips(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get all pending (INITIATED) deposit slips that are still valid
-
-    Useful for tellers to see incoming customers.
+    Get pending (INITIATED) deposit slips that are still valid.
+    Supports pagination. Useful for tellers to see incoming customers.
     """
-    slips = db.query(DigitalDepositSlip).filter(
+    base_query = db.query(DigitalDepositSlip).filter(
         DigitalDepositSlip.status == DepositSlipStatus.INITIATED,
-        DigitalDepositSlip.expires_at > datetime.utcnow()
-    ).order_by(DigitalDepositSlip.created_at.asc()).all()
+        DigitalDepositSlip.expires_at > datetime.now(timezone.utc)
+    )
+
+    total = base_query.count()
+    skip = (page - 1) * page_size
+    slips = base_query.order_by(
+        DigitalDepositSlip.created_at.asc()
+    ).offset(skip).limit(page_size).all()
+
+    # Batch-load branch names to avoid N+1
+    branch_ids = {s.branch_id for s in slips if s.branch_id}
+    branch_map = {}
+    if branch_ids:
+        branches = db.query(Branch.id, Branch.branch_name).filter(Branch.id.in_(branch_ids)).all()
+        branch_map = {b.id: b.branch_name for b in branches}
+
+    def slip_response(slip):
+        resp = slip_to_response(slip, None)
+        if slip.branch_id and slip.branch_id in branch_map:
+            resp.branch_name = branch_map[slip.branch_id]
+        return resp
 
     return {
         "success": True,
-        "count": len(slips),
-        "deposit_slips": [slip_to_response(s, db) for s in slips]
+        "count": total,
+        "page": page,
+        "page_size": page_size,
+        "deposit_slips": [slip_response(s) for s in slips]
     }
 
 

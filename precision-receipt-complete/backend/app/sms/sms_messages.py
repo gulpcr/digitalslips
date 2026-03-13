@@ -25,8 +25,9 @@ Select a Service:
 2. Card Services
 3. Branch Services
 4. Complaints & Support
+5. Digital Deposit Slip
 
-Reply with option number (1-4)"""
+Reply with option number (1-5)"""
 
     # ============================================
     # BRANCH SERVICES MENU
@@ -54,8 +55,11 @@ Select deposit type:
 1. Cash Deposit
 2. Cheque Deposit
 3. Pay Order / Demand Draft
+4. Own Account Transfer
+5. Loan Instalment
+6. Charity / Zakat
 
-Reply with option number (1-3)
+Reply with option number (1-6)
 Type 0 to go back"""
 
     # ============================================
@@ -71,6 +75,35 @@ Who is making the deposit?
 3. Business / Merchant
 
 Reply with option number (1-3)"""
+
+    # ============================================
+    # DEPOSITOR TYPE MENU (Self vs Third-Party)
+    # ============================================
+
+    DEPOSITOR_TYPE_MENU = """WHO WILL DEPOSIT?
+
+Who will visit the branch?
+
+1. Self (Account Holder)
+2. Third Party Depositor
+
+Reply with option number (1-2)"""
+
+    THIRDPARTY_NAME_REQUEST = """DEPOSITOR DETAILS
+
+Enter the depositor's full name (the person visiting the branch):"""
+
+    THIRDPARTY_CNIC_REQUEST = """DEPOSITOR CNIC
+
+Enter depositor's CNIC:
+Format: XXXXX-XXXXXXX-X
+Example: 35202-1234567-9"""
+
+    THIRDPARTY_PHONE_REQUEST = """DEPOSITOR PHONE
+
+Enter depositor's phone number:
+Format: 03XXXXXXXXX
+Example: 03001234567"""
 
     # ============================================
     # ACCOUNT SELECTION
@@ -447,10 +480,10 @@ Send HI to start over."""
 
     @staticmethod
     def mask_account(account_number: str) -> str:
-        """Mask account number for security"""
-        if not account_number or len(account_number) < 4:
+        """Mask account number per BRD format: first 4 digits--last 4 digits"""
+        if not account_number or len(account_number) <= 8:
             return account_number
-        return f"****{account_number[-4:]}"
+        return f"{account_number[:4]}--{account_number[-4:]}"
 
     @staticmethod
     def format_amount(amount: Decimal) -> str:

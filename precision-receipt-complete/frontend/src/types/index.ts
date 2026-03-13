@@ -57,6 +57,7 @@ export interface Transaction {
   created_at: string;
   completed_at: string | null;
   additional_data?: Record<string, any> | null;
+  drid?: string | null;
 }
 
 export interface TransactionCreate {

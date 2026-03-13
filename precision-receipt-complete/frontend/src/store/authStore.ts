@@ -11,14 +11,17 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  expiresAt: number | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  lastActivityAt: number;
 
   // Actions
-  setAuth: (user: User, accessToken: string, refreshToken: string) => void;
+  setAuth: (user: User, accessToken: string, refreshToken: string, expiresIn?: number) => void;
   clearAuth: () => void;
   setLoading: (loading: boolean) => void;
   updateUser: (user: Partial<User>) => void;
+  updateActivity: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,20 +30,27 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       refreshToken: null,
+      expiresAt: null,
       isAuthenticated: false,
       isLoading: false,
+      lastActivityAt: Date.now(),
 
-      setAuth: (user, accessToken, refreshToken) => {
+      setAuth: (user, accessToken, refreshToken, expiresIn) => {
         // Also store in localStorage for API interceptor
         localStorage.setItem('access_token', accessToken);
         localStorage.setItem('refresh_token', refreshToken);
+
+        // Calculate expiry timestamp (expiresIn is in seconds)
+        const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : null;
 
         set({
           user,
           accessToken,
           refreshToken,
+          expiresAt,
           isAuthenticated: true,
           isLoading: false,
+          lastActivityAt: Date.now(),
         });
       },
 
@@ -52,6 +62,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           accessToken: null,
           refreshToken: null,
+          expiresAt: null,
           isAuthenticated: false,
           isLoading: false,
         });
@@ -67,6 +78,10 @@ export const useAuthStore = create<AuthState>()(
           set({ user: { ...currentUser, ...userData } });
         }
       },
+
+      updateActivity: () => {
+        set({ lastActivityAt: Date.now() });
+      },
     }),
     {
       name: 'auth-storage',
@@ -74,6 +89,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
+        expiresAt: state.expiresAt,
         isAuthenticated: state.isAuthenticated,
       }),
     }

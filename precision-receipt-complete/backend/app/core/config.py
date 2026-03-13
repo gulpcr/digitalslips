@@ -7,28 +7,31 @@ Uses Pydantic Settings for environment variable management
 from pydantic_settings import BaseSettings
 from typing import List
 from functools import lru_cache
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
     """Application settings"""
-    
+
     # Application
     APP_NAME: str = "Precision Receipt"
     APP_VERSION: str = "1.0.0"
     NODE_ENV: str = "development"
     API_VERSION: str = "v1"
     PORT: int = 8000
-    DEBUG: bool = True
-    
+    DEBUG: bool = False
+
     # Database
     DATABASE_URL: str
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_NAME: str = "precision_receipt"
     DB_USER: str = "precision"
-    DB_PASSWORD: str = "precision123"
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 0
+    DB_PASSWORD: str = ""
+    DB_POOL_SIZE: int = 50
+    DB_MAX_OVERFLOW: int = 20
     DB_ECHO: bool = False
     
     # Authentication & Security
@@ -44,11 +47,11 @@ class Settings(BaseSettings):
     
     SESSION_SECRET: str
     SESSION_TIMEOUT_SECONDS: int = 3600
-    MAX_LOGIN_ATTEMPTS: int = 3
+    MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_SECONDS: int = 1800
     
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:3080"
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: str = "GET,POST,PUT,DELETE,PATCH,OPTIONS"
     CORS_ALLOW_HEADERS: str = "*"
@@ -120,6 +123,9 @@ class Settings(BaseSettings):
     FRAUD_DETECTION_ENABLED: bool = True
     FRAUD_THRESHOLD_SCORE: float = 0.75
     AUTO_BLOCK_SUSPICIOUS: bool = False
+    CTR_THRESHOLD_PKR: float = 250000.00
+    AML_MONTHLY_VOLUME_THRESHOLD_PKR: float = 2000000.00
+    AML_DAILY_FREQUENCY_THRESHOLD: int = 3
     
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -153,7 +159,19 @@ class Settings(BaseSettings):
     ENABLE_NOTIFICATIONS: bool = True
     ENABLE_QR_CODES: bool = True
     ENABLE_BIOMETRIC_AUTH: bool = False
+
+    # OTP Configuration
+    OTP_ENABLED: bool = True
+    OTP_REQUIRED: bool = False
+
+    # Session / Inactivity timeout (seconds)
+    SESSION_INACTIVITY_TIMEOUT: int = 900  # 15 minutes
     
+    @property
+    def cors_origins_list(self) -> list:
+        """Parse CORS_ORIGINS comma-separated string into a list"""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -162,7 +180,13 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance"""
-    return Settings()
+    s = Settings()
+    # Validate JWT_SECRET length on startup
+    if len(s.JWT_SECRET) < 32:
+        logger.warning(
+            "JWT_SECRET is shorter than 32 characters — this is insecure for production!"
+        )
+    return s
 
 
 settings = get_settings()

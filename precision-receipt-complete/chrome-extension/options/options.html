@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DDS Assistant - Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f3f4f6; color: #111827; }
+
+    .options-container { max-width: 800px; margin: 0 auto; padding: 24px; }
+
+    .options-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+      padding-bottom: 16px; border-bottom: 2px solid #e5e7eb;
+    }
+    .options-header h1 { font-size: 22px; color: #006241; }
+    .options-header svg { color: #006241; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #e5e7eb; }
+    .tab-btn {
+      padding: 12px 20px; background: none; border: none; cursor: pointer;
+      font-size: 14px; color: #6b7280; border-bottom: 2px solid transparent;
+      margin-bottom: -2px; transition: all 0.2s; font-weight: 500;
+    }
+    .tab-btn:hover { color: #374151; }
+    .tab-btn.active { color: #006241; border-bottom-color: #006241; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Form elements */
+    .card {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;
+    }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #111827; }
+    .form-group { margin-bottom: 16px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    .help-text { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    .input {
+      width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+      font-size: 14px; outline: none; transition: border-color 0.2s;
+    }
+    .input:focus { border-color: #006241; }
+    .input-sm { max-width: 300px; }
+
+    .btn {
+      padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 14px; font-weight: 500; transition: opacity 0.2s; display: inline-flex;
+      align-items: center; gap: 6px;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-primary { background: #006241; color: white; }
+    .btn-secondary { background: #e5e7eb; color: #374151; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-sm { padding: 6px 14px; font-size: 13px; }
+    .btn-group { display: flex; gap: 8px; margin-top: 16px; }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid #f3f4f6;
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 14px; }
+    .toggle-desc { font-size: 12px; color: #9ca3af; }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: #d1d5db; border-radius: 24px; cursor: pointer;
+      transition: background 0.3s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 18px; height: 18px;
+      left: 3px; bottom: 3px; background: white; border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle input:checked + .toggle-slider { background: #006241; }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    /* Accordion */
+    .accordion { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+    .accordion-header {
+      padding: 12px 16px; background: #f9fafb; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 14px; font-weight: 500; border: none; width: 100%;
+    }
+    .accordion-header:hover { background: #f3f4f6; }
+    .accordion-body { padding: 16px; display: none; border-top: 1px solid #e5e7eb; }
+    .accordion.open .accordion-body { display: block; }
+    .accordion-arrow { transition: transform 0.2s; }
+    .accordion.open .accordion-arrow { transform: rotate(90deg); }
+
+    textarea.input { min-height: 100px; font-family: monospace; font-size: 13px; resize: vertical; }
+
+    .status-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+    .status-success { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
+    .status-error { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+    .status-info { background: #eff6ff; color: #1e40af; border: 1px solid #93c5fd; }
+
+    .color-input { display: flex; align-items: center; gap: 8px; }
+    .color-input input[type="color"] {
+      width: 40px; height: 36px; border: 1px solid #d1d5db; border-radius: 6px;
+      cursor: pointer; padding: 2px;
+    }
+
+    .select {
+      padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+      font-size: 14px; outline: none; background: white; cursor: pointer;
+    }
+    .select:focus { border-color: #006241; }
+  </style>
+</head>
+<body>
+  <div class="options-container">
+    <div class="options-header">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <line x1="7" y1="8" x2="17" y2="8"/>
+        <line x1="7" y1="12" x2="17" y2="12"/>
+        <line x1="7" y1="16" x2="13" y2="16"/>
+      </svg>
+      <h1>DDS Assistant Settings</h1>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="urls">URLs & Endpoints</button>
+      <button class="tab-btn" data-tab="credentials">Transact Credentials</button>
+      <button class="tab-btn" data-tab="mappings">Field Mappings</button>
+      <button class="tab-btn" data-tab="appearance">Appearance</button>
+    </div>
+
+    <!-- Tab 1: URLs & Endpoints -->
+    <div class="tab-content active" data-pane="urls">
+      <div class="card">
+        <div class="card-title">Application URLs</div>
+        <div class="form-group">
+          <label class="label">Digital Slips URL</label>
+          <input type="url" class="input" id="digitalSlipsUrl" placeholder="http://localhost:3080"/>
+          <div class="help-text">URL where the Digital Slips web app is running</div>
+        </div>
+        <div class="form-group">
+          <label class="label">API Base URL</label>
+          <input type="url" class="input" id="apiBaseUrl" placeholder="http://localhost:8001"/>
+          <div class="help-text">Backend API server URL</div>
+        </div>
+        <div class="form-group">
+          <label class="label">Transact URL</label>
+          <input type="url" class="input" id="transactUrl" placeholder="https://transact.meezanbank.com"/>
+          <div class="help-text">T24/Transact core banking URL</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Extension Install Link</div>
+        <div class="form-group">
+          <label class="label">Install Banner URL</label>
+          <input type="url" class="input" id="installUrl" placeholder="https://chrome.google.com/webstore/detail/..."/>
+          <div class="help-text">URL shown in the login page install banner (leave empty for default)</div>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" id="save-urls">Save URLs</button>
+        <button class="btn btn-secondary" id="reset-urls">Reset to Defaults</button>
+      </div>
+      <div id="urls-status"></div>
+    </div>
+
+    <!-- Tab 2: Transact Credentials -->
+    <div class="tab-content" data-pane="credentials">
+      <div class="card">
+        <div class="card-title">Encrypted Credentials</div>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:16px;">
+          Credentials are encrypted with AES-256-GCM using a PIN you choose.
+          The PIN is never stored on disk — you'll be prompted once per browser session.
+        </p>
+        <div class="form-group">
+          <label class="label">Transact Username</label>
+          <input type="text" class="input input-sm" id="transact-username" placeholder="T24 username" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Transact Password</label>
+          <input type="password" class="input input-sm" id="transact-password" placeholder="T24 password" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Encryption PIN (4-20 characters)</label>
+          <input type="password" class="input input-sm" id="encryption-pin" placeholder="Choose a PIN" minlength="4" maxlength="20" autocomplete="off"/>
+          <div class="help-text">This PIN decrypts your credentials. Remember it — it cannot be recovered.</div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="save-creds">Encrypt & Save</button>
+          <button class="btn btn-secondary" id="test-login">Test Login</button>
+          <button class="btn btn-danger btn-sm" id="clear-creds">Clear Credentials</button>
+        </div>
+        <div id="creds-status"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Custom Selectors (Advanced)</div>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:16px;">
+          Override default CSS selectors for Transact login elements if your T24 deployment uses custom HTML.
+        </p>
+        <div class="form-group">
+          <label class="label">Username Field</label>
+          <input type="text" class="input input-sm" id="sel-username" placeholder="#signOnName"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Password Field</label>
+          <input type="text" class="input input-sm" id="sel-password" placeholder="#password"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Submit Button</label>
+          <input type="text" class="input input-sm" id="sel-submit" placeholder="#sign-in"/>
+        </div>
+        <div class="form-group">
+          <label class="label">Command Line</label>
+          <input type="text" class="input input-sm" id="sel-command" placeholder="#commandLine"/>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary btn-sm" id="save-selectors">Save Selectors</button>
+        </div>
+        <div id="selectors-status"></div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Field Mappings -->
+    <div class="tab-content" data-pane="mappings">
+      <div class="card">
+        <div class="card-title">T24 Version</div>
+        <div class="form-group">
+          <select class="select" id="t24-version">
+            <option value="R20">R20</option>
+            <option value="R21">R21</option>
+            <option value="R22" selected>R22</option>
+            <option value="R23">R23</option>
+          </select>
+          <div class="help-text">Field mappings may differ between T24 versions</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Field Mappings by Transaction Type</div>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:16px;">
+          Map slip data fields to T24 screen fields. Format: T24 field name → Slip data path (dot notation for nested).
+        </p>
+        <div id="mappings-accordions"></div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" id="save-mappings">Save Mappings</button>
+        <button class="btn btn-secondary" id="import-mappings">Import JSON</button>
+        <button class="btn btn-secondary" id="export-mappings">Export JSON</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" style="display:none"/>
+      <div id="mappings-status"></div>
+    </div>
+
+    <!-- Tab 4: Appearance -->
+    <div class="tab-content" data-pane="appearance">
+      <div class="card">
+        <div class="card-title">Brand & Colors</div>
+        <div class="form-group">
+          <label class="label">Brand Color</label>
+          <div class="color-input">
+            <input type="color" id="brand-color" value="#006241"/>
+            <input type="text" class="input input-sm" id="brand-color-hex" value="#006241" maxlength="7"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Widget Settings</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Auto-open Transact on login</div>
+            <div class="toggle-desc">Automatically open a Transact tab when you log into Digital Slips</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="auto-open-transact" checked/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Show presence badge</div>
+            <div class="toggle-desc">Show "Extension Active" badge on the Digital Slips login page</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="show-badge" checked/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Enable hotkey (Ctrl+Shift+D)</div>
+            <div class="toggle-desc">Toggle the floating widget with a keyboard shortcut</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enable-hotkey" checked/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Widget Position</div>
+        <div style="display:flex;gap:16px;">
+          <div class="form-group">
+            <label class="label">Right offset (px)</label>
+            <input type="number" class="input input-sm" id="widget-right" value="20" min="0" max="500"/>
+          </div>
+          <div class="form-group">
+            <label class="label">Bottom offset (px)</label>
+            <input type="number" class="input input-sm" id="widget-bottom" value="20" min="0" max="500"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" id="save-appearance">Save Appearance</button>
+      </div>
+      <div id="appearance-status"></div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

@@ -270,18 +270,32 @@ async def export_report(
             detail=f"Unknown report type: {report_type}"
         )
 
-    # Generate CSV
-    csv_content = ReportService.export_to_csv(report_type, data)
-
-    # Create filename
+    # Route by format
+    export_format = (export_request.format or 'csv').lower()
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"report_{report_type}_{timestamp}.csv"
 
-    # Return as streaming response
-    return StreamingResponse(
-        io.StringIO(csv_content),
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
-    )
+    if export_format == 'pdf':
+        pdf_bytes = ReportService.export_to_pdf(report_type, data)
+        filename = f"report_{report_type}_{timestamp}.pdf"
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    elif export_format in ('xlsx', 'excel'):
+        xlsx_bytes = ReportService.export_to_excel(report_type, data)
+        filename = f"report_{report_type}_{timestamp}.xlsx"
+        return StreamingResponse(
+            io.BytesIO(xlsx_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    else:
+        # Default: CSV
+        csv_content = ReportService.export_to_csv(report_type, data)
+        filename = f"report_{report_type}_{timestamp}.csv"
+        return StreamingResponse(
+            io.StringIO(csv_content),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )

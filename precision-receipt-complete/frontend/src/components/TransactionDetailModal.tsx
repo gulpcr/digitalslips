@@ -125,6 +125,14 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
             </div>
           ) : transaction ? (
             <>
+              {/* DRID */}
+              {transaction.drid && (
+                <div className="p-3 bg-accent-50 border border-accent rounded-lg mb-4 flex items-center justify-between">
+                  <span className="text-sm text-text-secondary">DRID</span>
+                  <span className="font-mono font-semibold text-accent">{transaction.drid}</span>
+                </div>
+              )}
+
               {/* Status and Amount */}
               <div className="flex items-center justify-between p-4 bg-background-light rounded-lg mb-6">
                 <div className="flex items-center gap-3">

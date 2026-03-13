@@ -85,7 +85,7 @@ class BranchResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/", response_model=List[BranchResponse])
+@router.get("", response_model=List[BranchResponse])
 async def get_branches(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -214,7 +214,7 @@ async def get_branch_by_code(
     )
 
 
-@router.post("/", response_model=BranchResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=BranchResponse, status_code=status.HTTP_201_CREATED)
 async def create_branch(
     branch_data: BranchCreate,
     current_user: User = Depends(require_admin),

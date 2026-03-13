@@ -1,0 +1,185 @@
+version: "3.9"
+
+# Production Docker Compose — uses pre-built images from Artifact Registry
+# Rollback: change RELEASE_TAG in .env.prod and run: docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # =========================
+  # PostgreSQL Database
+  # =========================
+  postgres:
+    image: postgres:15-alpine
+    container_name: precision-receipt-db
+    environment:
+      POSTGRES_USER: precision
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: precision_receipt
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U precision -d precision_receipt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    networks:
+      - db-network
+    restart: unless-stopped
+
+  # =========================
+  # Redis
+  # =========================
+  redis:
+    image: redis:7-alpine
+    container_name: precision-receipt-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    networks:
+      - db-network
+    restart: unless-stopped
+
+  # =========================
+  # Backend API
+  # =========================
+  backend:
+    image: ${REGISTRY}/backend:${RELEASE_TAG:-latest}
+    container_name: precision-receipt-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://precision:${DB_PASSWORD}@postgres:5432/precision_receipt
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SMS_ENABLED: ${SMS_ENABLED}
+      SMS_PROVIDER: ${SMS_PROVIDER}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      TWILIO_SMS_PHONE_NUMBER: ${TWILIO_SMS_PHONE_NUMBER}
+      PUBLIC_URL: ${PUBLIC_URL}
+    ports:
+      - "8001:8000"
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+    networks:
+      - db-network
+      - precision-network
+    restart: unless-stopped
+
+  # =========================
+  # Frontend (Nginx + Vite build)
+  # =========================
+  frontend:
+    image: ${REGISTRY}/frontend:${RELEASE_TAG:-latest}
+    container_name: precision-receipt-frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    networks:
+      - precision-network
+    restart: unless-stopped
+
+  # =========================
+  # WhatsApp Webhook Server
+  # =========================
+  whatsapp:
+    image: ${REGISTRY}/backend:${RELEASE_TAG:-latest}
+    container_name: precision-receipt-whatsapp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://precision:${DB_PASSWORD}@postgres:5432/precision_receipt
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+      WHATSAPP_PORT: 8000
+      PUBLIC_URL: ${PUBLIC_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SMS_ENABLED: ${SMS_ENABLED}
+      SMS_PROVIDER: ${SMS_PROVIDER}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      TWILIO_SMS_PHONE_NUMBER: ${TWILIO_SMS_PHONE_NUMBER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL}
+    ports:
+      - "9001:8000"
+    command: python -m app.whatsapp.whatsapp_server
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    networks:
+      - db-network
+      - precision-network
+    restart: unless-stopped
+
+# =========================
+# Volumes (persistent on VM disk)
+# =========================
+volumes:
+  postgres_data:
+  redis_data:
+  backend_uploads:
+  backend_logs:
+
+# =========================
+# Networks
+# =========================
+networks:
+  precision-network:
+    driver: bridge
+  db-network:
+    driver: bridge
+    internal: true

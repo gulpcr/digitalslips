@@ -2,22 +2,27 @@
 """
 Transaction API Endpoints - Full Implementation
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import uuid
 
+import logging
+
 from app.core.database import get_db
 from app.middleware.auth import get_current_active_user, get_current_user, require_teller_or_above
+
+logger = logging.getLogger(__name__)
 from app.models import (
-    Transaction, Customer, Account, User, Receipt,
+    Transaction, Customer, Account, User, Receipt, DigitalDepositSlip,
     TransactionStatus, TransactionType, TransactionCategory, Channel
 )
 from app.services.receipt_service import ReceiptService
 from app.services.notification_service import NotificationService
+from app.services.drid_service import DRIDService
 from app.schemas.transaction import (
     TransactionCreate, TransactionResponse, TransactionListResponse,
     TransactionFilterParams, TransactionStats
@@ -26,8 +31,17 @@ from app.schemas.transaction import (
 router = APIRouter()
 
 
-def transaction_to_response(txn: Transaction) -> TransactionResponse:
+def transaction_to_response(txn: Transaction, db: Session = None) -> TransactionResponse:
     """Convert Transaction model to response schema"""
+    # Look up linked DRID
+    drid = None
+    if db:
+        slip = db.query(DigitalDepositSlip).filter(
+            DigitalDepositSlip.transaction_id == txn.id
+        ).first()
+        if slip:
+            drid = slip.drid
+
     return TransactionResponse(
         id=str(txn.id),
         reference_number=txn.reference_number,
@@ -51,11 +65,12 @@ def transaction_to_response(txn: Transaction) -> TransactionResponse:
         branch_id=str(txn.branch_id),
         created_at=txn.created_at,
         completed_at=txn.completed_at,
-        additional_data=txn.extra_data
+        additional_data=txn.extra_data,
+        drid=drid,
     )
 
 
-@router.get("/", response_model=TransactionListResponse)
+@router.get("", response_model=TransactionListResponse)
 async def get_transactions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -73,10 +88,16 @@ async def get_transactions(
 
     # Apply filters
     if status:
-        query = query.filter(Transaction.status == TransactionStatus[status])
+        try:
+            query = query.filter(Transaction.status == TransactionStatus[status])
+        except KeyError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
 
     if transaction_type:
-        query = query.filter(Transaction.transaction_type == TransactionType[transaction_type])
+        try:
+            query = query.filter(Transaction.transaction_type == TransactionType[transaction_type])
+        except KeyError:
+            raise HTTPException(status_code=400, detail=f"Invalid transaction_type: {transaction_type}")
 
     if customer_cnic:
         query = query.filter(Transaction.customer_cnic == customer_cnic)
@@ -105,9 +126,23 @@ async def get_transactions(
     # Get paginated results
     transactions = query.order_by(Transaction.created_at.desc()).offset(skip).limit(page_size).all()
 
+    # Batch-load DRIDs to avoid N+1 queries
+    txn_ids = [txn.id for txn in transactions]
+    drid_map = {}
+    if txn_ids:
+        drid_rows = db.query(
+            DigitalDepositSlip.transaction_id, DigitalDepositSlip.drid
+        ).filter(DigitalDepositSlip.transaction_id.in_(txn_ids)).all()
+        drid_map = {row.transaction_id: row.drid for row in drid_rows}
+
+    def txn_to_resp(txn: Transaction) -> TransactionResponse:
+        resp = transaction_to_response(txn, None)  # skip per-txn DB query
+        resp.drid = drid_map.get(txn.id)
+        return resp
+
     return TransactionListResponse(
         success=True,
-        data=[transaction_to_response(txn) for txn in transactions],
+        data=[txn_to_resp(txn) for txn in transactions],
         total=total,
         page=page,
         page_size=page_size,
@@ -127,9 +162,9 @@ async def get_transaction_stats(
 
     # Default to last 30 days
     if not start_date:
-        start_date = datetime.utcnow() - timedelta(days=30)
+        start_date = datetime.now(timezone.utc) - timedelta(days=30)
     if not end_date:
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
 
     query = query.filter(
         and_(
@@ -185,17 +220,27 @@ async def get_transaction(
             detail="Transaction not found"
         )
 
-    return transaction_to_response(txn)
+    return transaction_to_response(txn, db)
 
 
-@router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def create_transaction(
     transaction: TransactionCreate,
+    request: Request,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new transaction with receipt and notifications"""
+
+    # Idempotency check — if client sends X-Idempotency-Key, dedup
+    idempotency_key = request.headers.get("X-Idempotency-Key")
+    if idempotency_key:
+        existing = db.query(Transaction).filter(
+            Transaction.extra_data["idempotency_key"].astext == idempotency_key
+        ).first()
+        if existing:
+            return transaction_to_response(existing, db)
 
     # Find customer by CNIC
     customer = db.query(Customer).filter(Customer.cnic == transaction.customer_cnic).first()
@@ -229,7 +274,10 @@ async def create_transaction(
         "CHEQUE_DEPOSIT": TransactionCategory.DEPOSIT,
         "PAY_ORDER": TransactionCategory.PAYMENT,
         "BILL_PAYMENT": TransactionCategory.PAYMENT,
-        "FUND_TRANSFER": TransactionCategory.TRANSFER
+        "FUND_TRANSFER": TransactionCategory.TRANSFER,
+        "OWN_ACCOUNT_TRANSFER": TransactionCategory.TRANSFER,
+        "LOAN_INSTALMENT": TransactionCategory.LOAN,
+        "CHARITY_ZAKAT": TransactionCategory.CHARITY,
     }
     category = category_map.get(transaction.transaction_type, TransactionCategory.DEPOSIT)
 
@@ -265,8 +313,11 @@ async def create_transaction(
         narration=transaction.narration,
         branch_id=account.branch_id,
         processed_by=processor_id,
-        completed_at=datetime.utcnow(),
-        extra_data=transaction.additional_data  # Store type-specific fields
+        completed_at=datetime.now(timezone.utc),
+        extra_data={
+            **(transaction.additional_data or {}),
+            **({"idempotency_key": idempotency_key} if idempotency_key else {}),
+        } or None  # Store type-specific fields + idempotency key
     )
 
     db.add(new_txn)
@@ -275,6 +326,30 @@ async def create_transaction(
 
     # Create receipt with QR code
     receipt = ReceiptService.create_receipt(db, new_txn, "DIGITAL")
+
+    # Create a deposit slip with DRID for this transaction
+    drid = None
+    try:
+        deposit_slip, error = DRIDService.create_deposit_slip(
+            db=db,
+            customer_cnic=customer.cnic,
+            customer_account=account.account_number,
+            amount=Decimal(str(transaction.amount)),
+            transaction_type=transaction.transaction_type,
+            currency=transaction.currency,
+            narration=transaction.narration,
+            depositor_name=transaction.depositor_name,
+            depositor_cnic=transaction.depositor_cnic,
+            depositor_phone=transaction.depositor_phone,
+            channel="WEB",
+        )
+        if deposit_slip:
+            drid = deposit_slip.drid
+            # Link deposit slip to transaction
+            deposit_slip.transaction_id = new_txn.id
+            db.commit()
+    except Exception as e:
+        logger.error(f"DRID creation failed for txn {new_txn.id}: {e}")
 
     # Send notifications in background
     async def send_notifications():
@@ -287,7 +362,7 @@ async def create_transaction(
 
     background_tasks.add_task(send_notifications)
 
-    return transaction_to_response(new_txn)
+    return transaction_to_response(new_txn, db)
 
 
 @router.get("/{transaction_id}/notifications")

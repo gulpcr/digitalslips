@@ -160,10 +160,6 @@ export const depositSlipService = {
    * Teller retrieves deposit slip by DRID
    */
   async retrieve(drid: string): Promise<DepositSlipRetrieveResponse> {
-    // Debug: Check if token exists
-    const token = localStorage.getItem('access_token');
-    console.log('[DRID Retrieve] Token present:', !!token);
-
     const response = await api.get<DepositSlipRetrieveResponse>(`/deposit-slips/retrieve/${drid}`);
     return response.data;
   },
@@ -195,6 +191,14 @@ export const depositSlipService = {
     }
   ): Promise<DepositSlipCompleteResponse> {
     const response = await api.post<DepositSlipCompleteResponse>(`/deposit-slips/${drid}/complete`, data);
+    return response.data;
+  },
+
+  /**
+   * Quick Complete: create + retrieve + verify + complete in one call (walk-in)
+   */
+  async quickComplete(data: DepositSlipCreate): Promise<DepositSlipCompleteResponse> {
+    const response = await api.post<DepositSlipCompleteResponse>('/deposit-slips/quick-complete', data);
     return response.data;
   },
 

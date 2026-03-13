@@ -150,6 +150,7 @@ class TransactionResponse(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime] = None
     additional_data: Optional[Dict[str, Any]] = None
+    drid: Optional[str] = None
 
     class Config:
         from_attributes = True

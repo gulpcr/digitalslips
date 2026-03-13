@@ -29,6 +29,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
 
   // Send receipt state
@@ -46,21 +47,31 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   const loadReceipt = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       // Load receipt details
       const receiptData = await receiptService.getReceipt(transactionId);
       setReceipt(receiptData);
 
       // Load transaction for additional_data
-      const txnData = await transactionService.getTransaction(transactionId);
-      setTransaction(txnData);
+      try {
+        const txnData = await transactionService.getTransaction(transactionId);
+        setTransaction(txnData);
+      } catch {
+        // Transaction details are supplementary — don't fail the whole modal
+      }
 
       // Load QR code
-      const qrData = await receiptService.getQRCode(transactionId, 'base64');
-      setQrCode(qrData.qr_code);
-    } catch (error) {
-      toast.error('Failed to load receipt');
-      console.error(error);
+      try {
+        const qrData = await receiptService.getQRCode(transactionId, 'base64');
+        setQrCode(qrData.qr_code);
+      } catch {
+        // QR code is supplementary — don't fail the whole modal
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || 'Failed to load receipt';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -251,6 +262,12 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
               {/* Details */}
               <div className="space-y-3 mb-6">
+                {transaction?.drid && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <span className="text-text-secondary">DRID</span>
+                    <span className="font-mono font-semibold text-accent">{transaction.drid}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b border-border">
                   <span className="text-text-secondary">Reference</span>
                   <span className="font-medium">{receipt.reference_number}</span>
@@ -556,6 +573,14 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 )}
               </div>
             </>
+          ) : loadError ? (
+            <div className="text-center py-12">
+              <p className="text-error font-medium mb-2">Error loading receipt</p>
+              <p className="text-text-secondary text-sm">{loadError}</p>
+              <Button variant="outline" className="mt-4" onClick={loadReceipt}>
+                Retry
+              </Button>
+            </div>
           ) : (
             <div className="text-center py-12 text-text-secondary">
               Receipt not found

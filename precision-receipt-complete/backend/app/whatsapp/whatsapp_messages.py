@@ -34,9 +34,10 @@ Welcome to Meezan Bank's WhatsApp Banking Service.
 2️⃣  💰  Card Services
 3️⃣  🏢  Branch Services
 4️⃣  📞  Complaints & Support
+5️⃣  📝  Digital Deposit Slip
 
 ━━━━━━━━━━━━━━━━━━━━━
-_Reply with option number (1-4)_
+_Reply with option number (1-5)_
 """
 
     # ============================================
@@ -89,8 +90,17 @@ Select deposit type:
 3️⃣  💳  *Pay Order / Demand Draft*
       _Request a pay order_
 
+4️⃣  🔄  *Own Account Transfer*
+      _Transfer between your accounts_
+
+5️⃣  📅  *Loan Instalment*
+      _Pay your loan instalment_
+
+6️⃣  ❤️  *Charity / Zakat*
+      _Donate to charity or pay Zakat_
+
 ━━━━━━━━━━━━━━━━━━━━━
-_Reply with option number (1-3)_
+_Reply with option number (1-6)_
 
 💡 Type *0* to go back
 """
@@ -119,6 +129,71 @@ Who is making the deposit?
 
 ━━━━━━━━━━━━━━━━━━━━━
 _Reply with option number (1-3)_
+"""
+
+    # ============================================
+    # DEPOSITOR TYPE MENU (Self vs Third-Party)
+    # ============================================
+
+    DEPOSITOR_TYPE_MENU = """
+╭─────────────────────────╮
+   👤 *WHO WILL DEPOSIT?*
+╰─────────────────────────╯
+
+Who will visit the branch to make this deposit?
+
+━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  ✅  *Self* (Account Holder)
+      _I will deposit myself_
+
+2️⃣  🚶  *Third Party Depositor*
+      _Someone else will deposit_
+
+━━━━━━━━━━━━━━━━━━━━━
+_Reply with option number (1-2)_
+"""
+
+    THIRDPARTY_NAME_REQUEST = """
+╭─────────────────────────╮
+   🚶 *DEPOSITOR DETAILS*
+╰─────────────────────────╯
+
+Please enter the *depositor's full name*
+(the person who will visit the branch):
+
+━━━━━━━━━━━━━━━━━━━━━
+_Type the complete name_
+"""
+
+    THIRDPARTY_CNIC_REQUEST = """
+╭─────────────────────────╮
+   🆔 *DEPOSITOR CNIC*
+╰─────────────────────────╯
+
+Please enter the *depositor's CNIC* number:
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 *Format:* XXXXX-XXXXXXX-X
+💡 *Example:* 35202-1234567-9
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter the 13-digit CNIC_
+"""
+
+    THIRDPARTY_PHONE_REQUEST = """
+╭─────────────────────────╮
+   📱 *DEPOSITOR PHONE*
+╰─────────────────────────╯
+
+Please enter the *depositor's phone number*:
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 *Format:* 03XXXXXXXXX
+💡 *Example:* 03001234567
+━━━━━━━━━━━━━━━━━━━━━
+
+_Enter the mobile number_
 """
 
     # ============================================
@@ -977,12 +1052,12 @@ meezanbank.com/branch-locator
 
     @staticmethod
     def mask_account(account_number: Optional[str]) -> str:
-        """Mask account number showing only last 4 digits"""
+        """Mask account number per BRD format: first 4 digits--last 4 digits"""
         if not account_number:
             return "****"
-        if len(account_number) <= 4:
+        if len(account_number) <= 8:
             return account_number
-        return f"****{account_number[-4:]}"
+        return f"{account_number[:4]}--{account_number[-4:]}"
 
     @staticmethod
     def format_datetime(dt: Optional[datetime]) -> str:

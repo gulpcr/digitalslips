@@ -10,6 +10,7 @@ import logging
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.services.token_blacklist import token_blacklist
 from app.models import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,11 @@ async def get_current_user(
         return None
 
     token = credentials.credentials
+
+    # Check if token has been blacklisted (logged out)
+    if token_blacklist.is_blacklisted(token):
+        return None
+
     token_data = decode_token(token)
 
     if not token_data:
@@ -55,6 +61,15 @@ async def get_current_active_user(
         )
 
     token = credentials.credentials
+
+    # Check if token has been blacklisted (logged out)
+    if token_blacklist.is_blacklisted(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token_data = decode_token(token)
 
     if not token_data:

@@ -243,7 +243,7 @@ class AuditTrailResponse(BaseModel):
 class ExportRequest(BaseModel):
     """Export request parameters"""
     report_type: str  # 'summary', 'user_activity', 'trends', 'failed', 'audit'
-    format: str = 'csv'  # 'csv' or 'pdf'
+    format: str = 'csv'  # 'csv', 'pdf', or 'xlsx'
     filters: Optional[ReportFilters] = None
 
 

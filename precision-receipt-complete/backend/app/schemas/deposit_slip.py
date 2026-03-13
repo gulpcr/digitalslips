@@ -151,6 +151,17 @@ class DepositSlipCompleteRequest(BaseModel):
     teller_notes: Optional[str] = None
 
 
+class AMLResultSchema(BaseModel):
+    """AML check result embedded in the complete-deposit response"""
+    fraud_score: float
+    fraud_flags: List[str]
+    is_suspicious: bool
+    needs_review: bool
+    requires_ctr: bool
+    risk_level: str
+    checked_at: Optional[datetime] = None
+
+
 class DepositSlipCompleteResponse(BaseModel):
     """Response when deposit slip is completed"""
     success: bool
@@ -159,6 +170,8 @@ class DepositSlipCompleteResponse(BaseModel):
     transaction_id: str
     transaction_reference: str
     receipt_number: Optional[str] = None
+    aml_result: Optional[AMLResultSchema] = None
+    aml_warning: Optional[str] = None
 
 
 class DepositSlipCancelRequest(BaseModel):

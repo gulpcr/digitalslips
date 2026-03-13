@@ -3,7 +3,7 @@
  * Main dashboard with transactions, search, and modals
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FiDollarSign, FiFileText, FiTrendingUp, FiCheckCircle, FiSearch, FiRefreshCw, FiHome, FiPlus } from 'react-icons/fi';
 import AdminLayout from '../components/layout/AdminLayout';
 import Button from '../components/ui/Button';
@@ -16,12 +16,10 @@ import TransactionDetailModal from '../components/TransactionDetailModal';
 import DRIDLookupModal from '../components/DRIDLookupModal';
 import toast from 'react-hot-toast';
 import { transactionService } from '../services/transaction.service';
-import { useAuthStore } from '../store/authStore';
 import { Transaction, TransactionListResponse } from '../types';
 import { format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
-  useAuthStore();
 
   // State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -36,7 +34,57 @@ const Dashboard: React.FC = () => {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDRIDModalOpen, setIsDRIDModalOpen] = useState(false);
+  const [scannedDRID, setScannedDRID] = useState('');
   const [selectedTransactionId, setSelectedTransactionId] = useState<string>('');
+
+  // Note: Chrome Extension 'dds-open-drid-modal' event is handled globally in App.tsx
+
+  // ── Physical QR/Barcode Scanner Detection ──
+  // Scanners act as keyboard emulators: type characters rapidly (< 80ms apart) then press Enter.
+  const scanBufferRef = useRef('');
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleScannerKeydown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in a visible input/textarea
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+
+      // Collect printable characters
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+        scanBufferRef.current += e.key;
+        scanTimeoutRef.current = setTimeout(() => { scanBufferRef.current = ''; }, 80);
+        return;
+      }
+
+      // Enter key with buffered content >= 8 chars = scanner completed
+      if (e.key === 'Enter' && scanBufferRef.current.length >= 8) {
+        e.preventDefault();
+        let scanned = scanBufferRef.current.trim();
+        scanBufferRef.current = '';
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+
+        // Extract DRID from JSON if needed
+        if (scanned.includes('"drid"') || scanned.includes('"DRID"') || scanned.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(scanned);
+            if (parsed.drid) scanned = parsed.drid;
+            else if (parsed.DRID) scanned = parsed.DRID;
+          } catch {
+            const match = scanned.match(/(?:MZ|DRID)-[\w-]+/i);
+            if (match) scanned = match[0];
+          }
+        }
+
+        setScannedDRID(scanned.toUpperCase());
+        setIsDRIDModalOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleScannerKeydown);
+    return () => document.removeEventListener('keydown', handleScannerKeydown);
+  }, []);
 
   // Stats
   const [stats, setStats] = useState({
@@ -61,16 +109,20 @@ const Dashboard: React.FC = () => {
       setTotalPages(response.total_pages);
       setTotalCount(response.total);
 
-      // Update stats
-      if (response.data.length > 0) {
-        const completed = response.data.filter(t => t.status === 'COMPLETED').length;
-        const totalAmt = response.data.reduce((sum, t) => sum + (parseFloat(String(t.amount)) || 0), 0);
+      // Fetch accurate stats from backend endpoint
+      try {
+        const statsResponse = await transactionService.getStats();
         setStats({
-          totalTransactions: response.total,
-          totalAmount: totalAmt,
-          completedCount: completed,
-          successRate: response.total > 0 ? (completed / response.data.length) * 100 : 0,
+          totalTransactions: statsResponse.total_count ?? response.total,
+          totalAmount: statsResponse.total_amount ?? 0,
+          completedCount: statsResponse.completed_count ?? 0,
+          successRate: statsResponse.total_count > 0
+            ? (statsResponse.completed_count / statsResponse.total_count) * 100
+            : 0,
         });
+      } catch {
+        // Fallback to response.total if stats endpoint fails
+        setStats(prev => ({ ...prev, totalTransactions: response.total }));
       }
     } catch (error) {
       toast.error('Failed to load transactions');
@@ -283,6 +335,7 @@ const Dashboard: React.FC = () => {
                   <Table.Head>
                     <Table.Row>
                       <Table.Cell header>Reference</Table.Cell>
+                      <Table.Cell header>DRID</Table.Cell>
                       <Table.Cell header>Customer</Table.Cell>
                       <Table.Cell header>Type</Table.Cell>
                       <Table.Cell header>Amount</Table.Cell>
@@ -296,6 +349,13 @@ const Dashboard: React.FC = () => {
                       <Table.Row key={txn.id}>
                         <Table.Cell>
                           <span className="font-semibold text-primary text-sm">{txn.reference_number}</span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          {txn.drid ? (
+                            <span className="font-mono text-xs text-accent bg-accent-50 px-2 py-1 rounded">{txn.drid}</span>
+                          ) : (
+                            <span className="text-xs text-text-secondary">—</span>
+                          )}
                         </Table.Cell>
                         <Table.Cell>
                           <div>
@@ -409,8 +469,10 @@ const Dashboard: React.FC = () => {
 
       <DRIDLookupModal
         isOpen={isDRIDModalOpen}
-        onClose={() => setIsDRIDModalOpen(false)}
+        initialDRID={scannedDRID}
+        onClose={() => { setIsDRIDModalOpen(false); setScannedDRID(''); }}
         onComplete={(transactionId) => {
+          setScannedDRID('');
           loadTransactions(1);
           if (transactionId) {
             handleViewReceipt(transactionId);

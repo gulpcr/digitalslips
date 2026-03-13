@@ -3,7 +3,7 @@
 Seed database with initial Pakistani banking data
 """
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from passlib.context import CryptContext
 from sqlalchemy import create_engine
@@ -39,7 +39,7 @@ def create_admin_user(db, admin_branch_id):
         branch_id=admin_branch_id,
         phone="+92-300-1234567",
         is_active=True,
-        password_changed_at=datetime.utcnow()
+        password_changed_at=datetime.now(timezone.utc)
     )
     db.add(admin)
     db.commit()
@@ -296,7 +296,7 @@ def create_customers(db):
             "occupation": "Business Owner",
             "monthly_income": Decimal("250000.00"),
             "is_verified": True,
-            "verified_at": datetime.utcnow(),
+            "verified_at": datetime.now(timezone.utc),
             "kyc_status": KycStatus.VERIFIED
         },
         {
@@ -314,7 +314,7 @@ def create_customers(db):
             "occupation": "Software Engineer",
             "monthly_income": Decimal("180000.00"),
             "is_verified": True,
-            "verified_at": datetime.utcnow(),
+            "verified_at": datetime.now(timezone.utc),
             "kyc_status": KycStatus.VERIFIED
         },
         {
@@ -332,7 +332,7 @@ def create_customers(db):
             "occupation": "Doctor",
             "monthly_income": Decimal("300000.00"),
             "is_verified": True,
-            "verified_at": datetime.utcnow(),
+            "verified_at": datetime.now(timezone.utc),
             "kyc_status": KycStatus.VERIFIED
         },
         {
@@ -350,7 +350,7 @@ def create_customers(db):
             "occupation": "Banker",
             "monthly_income": Decimal("150000.00"),
             "is_verified": True,
-            "verified_at": datetime.utcnow(),
+            "verified_at": datetime.now(timezone.utc),
             "kyc_status": KycStatus.VERIFIED
         },
         {
@@ -368,7 +368,7 @@ def create_customers(db):
             "occupation": "Teacher",
             "monthly_income": Decimal("80000.00"),
             "is_verified": True,
-            "verified_at": datetime.utcnow(),
+            "verified_at": datetime.now(timezone.utc),
             "kyc_status": KycStatus.VERIFIED
         }
     ]
@@ -500,6 +500,11 @@ def create_system_settings(db, admin_user):
         {"key": "receipt.qr_expiry_hours", "value": "24", "value_type": "integer", "category": "receipt", "description": "QR code expiry in hours"},
         {"key": "receipt.blockchain_enabled", "value": "true", "value_type": "boolean", "category": "receipt", "description": "Enable blockchain verification"},
         {"key": "receipt.blockchain_network", "value": "ethereum", "value_type": "string", "category": "receipt", "description": "Blockchain network"},
+
+        # Extension / T24 Configuration
+        {"key": "extension.transact_url", "value": "https://transact.meezanbank.com", "value_type": "string", "category": "extension", "description": "T24 Transact core banking URL"},
+        {"key": "extension.auto_open_transact", "value": "false", "value_type": "boolean", "category": "extension", "description": "Auto-open Transact tab on login"},
+        {"key": "extension.t24_version", "value": "R16", "value_type": "string", "category": "extension", "description": "T24 version"},
     ]
     
     for data in settings_data:

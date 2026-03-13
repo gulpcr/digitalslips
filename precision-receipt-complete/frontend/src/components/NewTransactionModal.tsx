@@ -3,13 +3,14 @@
  * Dynamic form with type-specific fields
  */
 
-import React, { useState, useEffect } from 'react';
-import { FiX, FiDollarSign, FiFileText, FiCreditCard, FiZap, FiSend, FiAlertCircle } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiX, FiDollarSign, FiFileText, FiCreditCard, FiZap, FiSend, FiAlertCircle, FiRepeat, FiCalendar, FiHeart } from 'react-icons/fi';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import Input from './ui/Input';
 import toast from 'react-hot-toast';
 import { transactionService } from '../services/transaction.service';
+import { depositSlipService } from '../services/depositSlip.service';
 import { TransactionCreate } from '../types';
 import api from '../services/api';
 
@@ -26,6 +27,9 @@ const TRANSACTION_TYPES = [
   { value: 'PAY_ORDER', label: 'Pay Order', icon: FiCreditCard, color: 'text-purple-600' },
   { value: 'BILL_PAYMENT', label: 'Bill Payment', icon: FiZap, color: 'text-yellow-600' },
   { value: 'FUND_TRANSFER', label: 'Fund Transfer', icon: FiSend, color: 'text-cyan-600' },
+  { value: 'OWN_ACCOUNT_TRANSFER', label: 'Own Account', icon: FiRepeat, color: 'text-indigo-600' },
+  { value: 'LOAN_INSTALMENT', label: 'Loan Instalment', icon: FiCalendar, color: 'text-orange-600' },
+  { value: 'CHARITY_ZAKAT', label: 'Charity/Zakat', icon: FiHeart, color: 'text-rose-600' },
 ];
 
 // Bill types for bill payment
@@ -85,6 +89,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
   const [errors, setErrors] = useState<FormErrors>({});
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
+  const [quickComplete, setQuickComplete] = useState(false);
 
   // Form state
   const [transactionType, setTransactionType] = useState('CASH_DEPOSIT');
@@ -113,6 +118,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
   const [chequeBank, setChequeBank] = useState('');
   const [chequeBranch, setChequeBranch] = useState('');
   const [chequeClearingType, setChequeClearingType] = useState('LOCAL'); // LOCAL or INTER_CITY
+  const [chequeAmountInWords, setChequeAmountInWords] = useState('');
 
   // Pay Order fields
   const [payeeName, setPayeeName] = useState('');
@@ -131,13 +137,36 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
   const [beneficiaryBank, setBeneficiaryBank] = useState('');
   const [beneficiaryIban, setBeneficiaryIban] = useState('');
 
+  // Own Account Transfer fields
+  const [targetAccount, setTargetAccount] = useState('');
+
+  // Loan Instalment fields
+  const [loanAccountNumber, setLoanAccountNumber] = useState('');
+  const [instalmentNumber, setInstalmentNumber] = useState('');
+
+  // Charity/Zakat fields
+  const [charityOrganization, setCharityOrganization] = useState('');
+  const [charityPurpose, setCharityPurpose] = useState('ZAKAT');
+
+  // AbortController ref for cancelling stale CNIC lookups
+  const cnicAbortRef = useRef<AbortController | null>(null);
+
   // Fetch customer info when CNIC changes
   useEffect(() => {
     const fetchCustomer = async () => {
       if (customerCnic.length === 15 && customerCnic.match(/^\d{5}-\d{7}-\d{1}$/)) {
+        // Abort any previous in-flight request
+        if (cnicAbortRef.current) {
+          cnicAbortRef.current.abort();
+        }
+        const controller = new AbortController();
+        cnicAbortRef.current = controller;
+
         setLoadingCustomer(true);
         try {
-          const response = await api.get(`/customers/by-cnic/${customerCnic}`);
+          const response = await api.get(`/customers/by-cnic/${customerCnic}`, {
+            signal: controller.signal,
+          });
           if (response.data) {
             setCustomerInfo(response.data);
             // Auto-select first account if available
@@ -145,8 +174,10 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
               setCustomerAccount(response.data.accounts[0].account_number);
             }
           }
-        } catch {
-          setCustomerInfo(null);
+        } catch (err: any) {
+          if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+            setCustomerInfo(null);
+          }
         } finally {
           setLoadingCustomer(false);
         }
@@ -156,6 +187,12 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     };
 
     fetchCustomer();
+
+    return () => {
+      if (cnicAbortRef.current) {
+        cnicAbortRef.current.abort();
+      }
+    };
   }, [customerCnic]);
 
   const resetForm = () => {
@@ -189,6 +226,11 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     setBeneficiaryAccount('');
     setBeneficiaryBank('');
     setBeneficiaryIban('');
+    setTargetAccount('');
+    setLoanAccountNumber('');
+    setInstalmentNumber('');
+    setCharityOrganization('');
+    setCharityPurpose('ZAKAT');
     setErrors({});
     setCustomerInfo(null);
   };
@@ -292,6 +334,21 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
       }
     }
 
+    if (transactionType === 'OWN_ACCOUNT_TRANSFER') {
+      if (!targetAccount) newErrors.targetAccount = 'Target account is required';
+      if (targetAccount === customerAccount) {
+        newErrors.targetAccount = 'Target account must be different from source account';
+      }
+    }
+
+    if (transactionType === 'LOAN_INSTALMENT') {
+      if (!loanAccountNumber) newErrors.loanAccountNumber = 'Loan account number is required';
+    }
+
+    if (transactionType === 'CHARITY_ZAKAT') {
+      if (!charityOrganization) newErrors.charityOrganization = 'Organization name is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -319,6 +376,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
           cheque_clearing_type: chequeClearingType,
           cheque_clearing_days: clearingInfo.days,
           cheque_processing_fee: clearingInfo.fee,
+          cheque_amount_in_words: chequeAmountInWords || undefined,
         };
       }
       case 'PAY_ORDER':
@@ -342,6 +400,20 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
           beneficiary_iban: beneficiaryIban || undefined,
           transfer_type: beneficiaryBank === 'Meezan Bank' ? 'INTERNAL' : 'INTER_BANK',
         };
+      case 'OWN_ACCOUNT_TRANSFER':
+        return {
+          target_account: targetAccount,
+        };
+      case 'LOAN_INSTALMENT':
+        return {
+          loan_account_number: loanAccountNumber,
+          instalment_number: instalmentNumber || undefined,
+        };
+      case 'CHARITY_ZAKAT':
+        return {
+          charity_organization: charityOrganization,
+          charity_purpose: charityPurpose,
+        };
       default:
         return undefined;
     }
@@ -358,21 +430,46 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     setLoading(true);
 
     try {
-      const formData: TransactionCreate = {
-        transaction_type: transactionType,
-        customer_cnic: customerCnic,
-        customer_account: customerAccount,
-        amount: parseFloat(amount),
-        currency,
-        narration: narration || undefined,
-        depositor_name: depositorName || undefined,
-        depositor_cnic: depositorCnic || undefined,
-        depositor_phone: depositorPhone || undefined,
-        additional_data: buildAdditionalData(),
-      };
+      if (quickComplete) {
+        // Quick Complete path: create + retrieve + verify + complete in one call
+        const slipData = {
+          transaction_type: transactionType,
+          customer_cnic: customerCnic,
+          customer_account: customerAccount,
+          amount: parseFloat(amount),
+          currency,
+          narration: narration || undefined,
+          depositor_name: depositorName || undefined,
+          depositor_cnic: depositorCnic || undefined,
+          depositor_phone: depositorPhone || undefined,
+          channel: 'WEB',
+          additional_data: buildAdditionalData(),
+        };
+        const result = await depositSlipService.quickComplete(slipData);
+        toast.success(`Quick Complete! DRID: ${result.drid} | Receipt: ${result.receipt_number || 'N/A'}`, { duration: 8000 });
+      } else {
+        // Normal path
+        const formData: TransactionCreate = {
+          transaction_type: transactionType,
+          customer_cnic: customerCnic,
+          customer_account: customerAccount,
+          amount: parseFloat(amount),
+          currency,
+          narration: narration || undefined,
+          depositor_name: depositorName || undefined,
+          depositor_cnic: depositorCnic || undefined,
+          depositor_phone: depositorPhone || undefined,
+          additional_data: buildAdditionalData(),
+        };
 
-      await transactionService.createTransaction(formData);
-      toast.success('Transaction created successfully!');
+        const result = await transactionService.createTransaction(formData);
+        const drid = (result as any).drid;
+        if (drid) {
+          toast.success(`Transaction created! DRID: ${drid}`, { duration: 8000 });
+        } else {
+          toast.success('Transaction created successfully!');
+        }
+      }
       onSuccess();
       onClose();
       resetForm();
@@ -385,7 +482,45 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     }
   };
 
+  // Clear type-specific fields when transaction type changes
+  const handleTypeChange = (newType: string) => {
+    setTransactionType(newType);
+    // Reset type-specific fields
+    setChequeNumber('');
+    setChequeDate('');
+    setChequeBank('');
+    setChequeBranch('');
+    setChequeClearingType('LOCAL');
+    setPayeeName('');
+    setPayeeCnic('');
+    setPayeePhone('');
+    setBillType('');
+    setConsumerNumber('');
+    setBillerName('');
+    setDueDate('');
+    setBeneficiaryName('');
+    setBeneficiaryAccount('');
+    setBeneficiaryBank('');
+    setBeneficiaryIban('');
+    setTargetAccount('');
+    setLoanAccountNumber('');
+    setInstalmentNumber('');
+    setCharityOrganization('');
+    setCharityPurpose('ZAKAT');
+    setErrors({});
+  };
+
+  const hasFormData = () => {
+    return !!(customerCnic || customerAccount || amount || narration ||
+      depositorName || depositorCnic || depositorPhone);
+  };
+
   const handleClose = () => {
+    if (hasFormData()) {
+      if (!window.confirm('You have unsaved data. Are you sure you want to close?')) {
+        return;
+      }
+    }
     resetForm();
     onClose();
   };
@@ -420,12 +555,28 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
           </div>
 
           <form onSubmit={handleSubmit}>
+            {/* Quick Complete Toggle */}
+            <div className="mb-4 p-3 bg-accent-50 border border-accent rounded-lg">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={quickComplete}
+                  onChange={(e) => setQuickComplete(e.target.checked)}
+                  className="w-5 h-5 rounded border-border text-accent focus:ring-accent"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-accent">Quick Complete (Walk-in)</span>
+                  <p className="text-xs text-text-secondary">Create DRID and complete transaction in one step - for walk-in customers</p>
+                </div>
+              </label>
+            </div>
+
             {/* Transaction Type Selector */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-text-primary mb-3">
                 Select Transaction Type *
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {TRANSACTION_TYPES.map((type) => {
                   const Icon = type.icon;
                   const isSelected = transactionType === type.value;
@@ -433,7 +584,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                     <button
                       key={type.value}
                       type="button"
-                      onClick={() => setTransactionType(type.value)}
+                      onClick={() => handleTypeChange(type.value)}
                       className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
                         isSelected
                           ? 'border-primary bg-primary-50'
@@ -464,6 +615,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                     placeholder="42101-1234567-1"
                     value={customerCnic}
                     onChange={(e) => setCustomerCnic(e.target.value)}
+                    maxLength={15}
                     fullWidth
                     error={!!errors.customerCnic}
                   />
@@ -501,6 +653,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       placeholder="0101234567890"
                       value={customerAccount}
                       onChange={(e) => setCustomerAccount(e.target.value)}
+                      maxLength={20}
                       fullWidth
                       error={!!errors.customerAccount}
                     />
@@ -637,6 +790,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                         placeholder="42101-1234567-1"
                         value={depositorCnic}
                         onChange={(e) => setDepositorCnic(e.target.value)}
+                        maxLength={15}
                         fullWidth
                         error={!!errors.depositorCnic}
                       />
@@ -672,6 +826,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       placeholder="123456"
                       value={chequeNumber}
                       onChange={(e) => setChequeNumber(e.target.value.replace(/\D/g, ''))}
+                      maxLength={10}
                       fullWidth
                       error={!!errors.chequeNumber}
                     />
@@ -714,6 +869,17 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       fullWidth
                     />
                   </div>
+                </div>
+
+                <div>
+                  <Input
+                    label="Amount in Words"
+                    placeholder="e.g., Fifty Thousand Rupees Only"
+                    value={chequeAmountInWords}
+                    onChange={(e) => setChequeAmountInWords(e.target.value)}
+                    fullWidth
+                  />
+                  <p className="text-xs text-text-secondary mt-1">As written on the cheque</p>
                 </div>
 
                 {/* Clearing Type Selection */}
@@ -815,6 +981,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       placeholder="42101-1234567-1"
                       value={payeeCnic}
                       onChange={(e) => setPayeeCnic(e.target.value)}
+                      maxLength={15}
                       fullWidth
                       error={!!errors.payeeCnic}
                     />
@@ -863,6 +1030,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       placeholder="12-345-6789012-3"
                       value={consumerNumber}
                       onChange={(e) => setConsumerNumber(e.target.value)}
+                      maxLength={20}
                       fullWidth
                       error={!!errors.consumerNumber}
                     />
@@ -945,6 +1113,7 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                       placeholder="PK36MEZN0001234567891234"
                       value={beneficiaryIban}
                       onChange={(e) => setBeneficiaryIban(e.target.value.toUpperCase())}
+                      maxLength={24}
                       fullWidth
                       error={!!errors.beneficiaryIban}
                     />
@@ -954,6 +1123,116 @@ const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
                         : 'Optional for Meezan Bank transfers'}
                     </p>
                     {renderFieldError('beneficiaryIban')}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {transactionType === 'OWN_ACCOUNT_TRANSFER' && (
+              <div className="space-y-4 mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <FiRepeat className="text-indigo-600" />
+                  Own Account Transfer
+                </h3>
+                <p className="text-sm text-text-secondary">Transfer between your own Meezan Bank accounts</p>
+
+                <div>
+                  {customerInfo && customerInfo.accounts.length > 1 ? (
+                    <div>
+                      <label className="block text-sm font-medium text-text-primary mb-1">Target Account *</label>
+                      <select
+                        className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={targetAccount}
+                        onChange={(e) => setTargetAccount(e.target.value)}
+                      >
+                        <option value="">Select target account</option>
+                        {customerInfo.accounts
+                          .filter((acc) => acc.account_number !== customerAccount)
+                          .map((acc) => (
+                            <option key={acc.account_number} value={acc.account_number}>
+                              {acc.account_number} - {acc.account_title}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <Input
+                      label="Target Account Number *"
+                      placeholder="Your other account number"
+                      value={targetAccount}
+                      onChange={(e) => setTargetAccount(e.target.value)}
+                      fullWidth
+                      error={!!errors.targetAccount}
+                    />
+                  )}
+                  {renderFieldError('targetAccount')}
+                </div>
+              </div>
+            )}
+
+            {transactionType === 'LOAN_INSTALMENT' && (
+              <div className="space-y-4 mb-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <FiCalendar className="text-orange-600" />
+                  Loan Instalment Details
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Input
+                      label="Loan Account Number *"
+                      placeholder="Loan account number"
+                      value={loanAccountNumber}
+                      onChange={(e) => setLoanAccountNumber(e.target.value)}
+                      fullWidth
+                      error={!!errors.loanAccountNumber}
+                    />
+                    {renderFieldError('loanAccountNumber')}
+                  </div>
+                  <div>
+                    <Input
+                      label="Instalment Number"
+                      placeholder="e.g., 12"
+                      value={instalmentNumber}
+                      onChange={(e) => setInstalmentNumber(e.target.value.replace(/\D/g, ''))}
+                      fullWidth
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {transactionType === 'CHARITY_ZAKAT' && (
+              <div className="space-y-4 mb-6 p-4 bg-rose-50 rounded-lg border border-rose-200">
+                <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <FiHeart className="text-rose-600" />
+                  Charity / Zakat Details
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Input
+                      label="Organization *"
+                      placeholder="e.g., Edhi Foundation"
+                      value={charityOrganization}
+                      onChange={(e) => setCharityOrganization(e.target.value)}
+                      fullWidth
+                      error={!!errors.charityOrganization}
+                    />
+                    {renderFieldError('charityOrganization')}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-1">Purpose *</label>
+                    <select
+                      className="w-full px-3 py-2 border border-border rounded-input focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={charityPurpose}
+                      onChange={(e) => setCharityPurpose(e.target.value)}
+                    >
+                      <option value="ZAKAT">Zakat</option>
+                      <option value="SADAQAH">Sadaqah</option>
+                      <option value="FITRANA">Fitrana</option>
+                      <option value="DONATION">General Donation</option>
+                    </select>
                   </div>
                 </div>
               </div>

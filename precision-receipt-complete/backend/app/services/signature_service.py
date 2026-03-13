@@ -7,7 +7,7 @@ import os
 import base64
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple, Dict, Any
 from pathlib import Path
 
@@ -185,7 +185,7 @@ class SignatureService:
 
         try:
             # Create signing timestamp
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
             timestamp_iso = timestamp.isoformat() + "Z"
 
             # Add timestamp to receipt data for signing

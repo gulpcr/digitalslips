@@ -3,7 +3,7 @@
 Notification Service - Handles multi-channel notifications (WhatsApp, SMS, Email)
 Implements Twilio for WhatsApp/SMS and SMTP for Email
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from enum import Enum
@@ -298,11 +298,11 @@ _Thank you for banking with Meezan Bank._
 
             if success:
                 notification.status = NotificationStatus.SENT
-                notification.sent_at = datetime.utcnow()
+                notification.sent_at = datetime.now(timezone.utc)
                 logger.info(f"Notification {notification.id} sent successfully via {notification.channel.value}")
             else:
                 notification.status = NotificationStatus.FAILED
-                notification.failed_at = datetime.utcnow()
+                notification.failed_at = datetime.now(timezone.utc)
                 notification.retry_count += 1
                 logger.error(f"Failed to send notification {notification.id}")
 
@@ -311,7 +311,7 @@ _Thank you for banking with Meezan Bank._
 
         except Exception as e:
             notification.status = NotificationStatus.FAILED
-            notification.failed_at = datetime.utcnow()
+            notification.failed_at = datetime.now(timezone.utc)
             notification.failure_reason = str(e)
             notification.retry_count += 1
             db.commit()

@@ -9,7 +9,7 @@ services:
     container_name: precision-receipt-db
     environment:
       POSTGRES_USER: precision
-      POSTGRES_PASSWORD: precision123
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-precision123}
       POSTGRES_DB: precision_receipt
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
@@ -21,8 +21,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
     networks:
-      - precision-network
+      - db-network
     restart: unless-stopped
 
   # =========================
@@ -41,8 +46,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
     networks:
-      - precision-network
+      - db-network
     restart: unless-stopped
 
   # =========================
@@ -58,7 +68,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://precision:precision123@postgres:5432/precision_receipt
+      DATABASE_URL: postgresql://precision:${DB_PASSWORD:-precision123}@postgres:5432/precision_receipt
       REDIS_HOST: redis
       REDIS_PORT: 6379
       NODE_ENV: production
@@ -77,7 +87,19 @@ services:
     volumes:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
     networks:
+      - db-network
       - precision-network
     restart: unless-stopped
 
@@ -92,6 +114,11 @@ services:
       - backend
     ports:
       - "3080:80"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
     networks:
       - precision-network
     restart: unless-stopped
@@ -109,7 +136,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://precision:precision123@postgres:5432/precision_receipt
+      DATABASE_URL: postgresql://precision:${DB_PASSWORD:-precision123}@postgres:5432/precision_receipt
       REDIS_HOST: redis
       REDIS_PORT: 6379
       NODE_ENV: production
@@ -133,7 +160,13 @@ services:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
       - ./frontend/dist:/app/frontend_dist:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
     networks:
+      - db-network
       - precision-network
     restart: unless-stopped
 
@@ -152,3 +185,6 @@ volumes:
 networks:
   precision-network:
     driver: bridge
+  db-network:
+    driver: bridge
+    internal: true

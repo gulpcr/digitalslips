@@ -3,8 +3,8 @@
  * Pre-Branch digital deposit slip creation with dynamic transaction types
  */
 
-import React, { useState } from 'react';
-import { FiCheck, FiClock, FiAlertCircle, FiCopy, FiDownload, FiDollarSign, FiFileText, FiCreditCard, FiZap, FiSend, FiCamera, FiX } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiCheck, FiClock, FiAlertCircle, FiCopy, FiDownload, FiDollarSign, FiFileText, FiCreditCard, FiZap, FiSend, FiCamera, FiX, FiRepeat, FiCalendar, FiHeart } from 'react-icons/fi';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
@@ -12,6 +12,8 @@ import toast from 'react-hot-toast';
 import { depositSlipService, DepositSlipCreateResponse } from '../services/depositSlip.service';
 import ChequeScannerModal from '../components/ChequeScannerModal';
 import { ChequeData } from '../services/chequeOcr.service';
+// @ts-ignore — html2pdf.js has no TypeScript declarations
+import html2pdf from 'html2pdf.js';
 
 // Transaction types with icons and labels
 const TRANSACTION_TYPES = [
@@ -20,6 +22,9 @@ const TRANSACTION_TYPES = [
   { value: 'PAY_ORDER', label: 'Pay Order', icon: FiCreditCard, color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
   { value: 'BILL_PAYMENT', label: 'Bill Payment', icon: FiZap, color: 'text-yellow-600', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200' },
   { value: 'FUND_TRANSFER', label: 'Fund Transfer', icon: FiSend, color: 'text-cyan-600', bgColor: 'bg-cyan-50', borderColor: 'border-cyan-200' },
+  { value: 'OWN_ACCOUNT_TRANSFER', label: 'Own Account', icon: FiRepeat, color: 'text-indigo-600', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
+  { value: 'LOAN_INSTALMENT', label: 'Loan Instalment', icon: FiCalendar, color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
+  { value: 'CHARITY_ZAKAT', label: 'Charity/Zakat', icon: FiHeart, color: 'text-rose-600', bgColor: 'bg-rose-50', borderColor: 'border-rose-200' },
 ];
 
 // Bill types
@@ -61,6 +66,32 @@ const CustomerDeposit: React.FC = () => {
   const [result, setResult] = useState<DepositSlipCreateResponse | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [showChequeScanner, setShowChequeScanner] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const resultCardRef = useRef<HTMLDivElement>(null);
+
+  // Live countdown timer when result is shown
+  useEffect(() => {
+    if (!result) { setCountdown(null); return; }
+    const expiresAt = new Date(result.expires_at).getTime();
+    const calcRemaining = () => Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    setCountdown(calcRemaining());
+    const interval = setInterval(() => {
+      const rem = calcRemaining();
+      setCountdown(rem);
+      if (rem <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [result]);
+
+  const countdownColor = countdown != null
+    ? countdown > 30 * 60 ? 'text-success' : countdown > 10 * 60 ? 'text-warning' : 'text-error'
+    : 'text-warning';
+
+  const formatCountdown = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}m ${sec.toString().padStart(2, '0')}s`;
+  };
 
   // Form state
   const [transactionType, setTransactionType] = useState('CASH_DEPOSIT');
@@ -342,7 +373,7 @@ const CustomerDeposit: React.FC = () => {
           </div>
 
           <Card padding="lg" shadow="lg">
-            <div className="text-center">
+            <div ref={resultCardRef} className="text-center">
               <p className="text-sm text-text-secondary mb-2">Your Digital Reference ID (DRID)</p>
               <div className="flex items-center justify-center gap-2 mb-4">
                 <span className="text-3xl font-bold text-primary tracking-wider">
@@ -356,9 +387,13 @@ const CustomerDeposit: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex items-center justify-center gap-2 text-warning mb-6">
+              <div className={`flex items-center justify-center gap-2 mb-6 ${countdownColor}`}>
                 <FiClock className="w-5 h-5" />
-                <span className="font-medium">Valid for {result.validity_minutes} minutes</span>
+                <span className="font-medium">
+                  {countdown != null && countdown > 0
+                    ? `Time remaining: ${formatCountdown(countdown)}`
+                    : countdown === 0 ? 'EXPIRED' : `Valid for ${result.validity_minutes} minutes`}
+                </span>
               </div>
 
               {result.qr_code_data && (
@@ -396,8 +431,18 @@ const CustomerDeposit: React.FC = () => {
                 <Button variant="outline" fullWidth onClick={() => setResult(null)}>
                   Create Another
                 </Button>
-                <Button variant="primary" fullWidth onClick={() => window.print()} leftIcon={<FiDownload />}>
-                  Print/Save
+                <Button variant="primary" fullWidth onClick={() => {
+                  if (!resultCardRef.current) return;
+                  const opt = {
+                    margin: 10,
+                    filename: `DRID_${result.drid}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                  };
+                  html2pdf().from(resultCardRef.current).set(opt).save();
+                }} leftIcon={<FiDownload />}>
+                  Download PDF
                 </Button>
               </div>
             </div>

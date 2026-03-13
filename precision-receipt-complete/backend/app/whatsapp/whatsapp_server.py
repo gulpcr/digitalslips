@@ -8,7 +8,7 @@ Runs on separate port to not interfere with main web server
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
@@ -43,10 +43,10 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS.split(","),
+    allow_headers=settings.CORS_ALLOW_HEADERS.split(","),
 )
 
 # Static files - serve uploads directory for QR codes
@@ -96,7 +96,7 @@ async def root():
         "service": "Precision Receipt WhatsApp Server",
         "status": "running",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -106,7 +106,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "whatsapp-server",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -553,7 +553,7 @@ async def get_sessions():
     return {
         "active_sessions": len(session_manager._sessions),
         "cleaned_sessions": cleaned,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -625,7 +625,7 @@ async def notify_transaction_complete(
             amount=slip.amount,
             transaction_id=transaction.reference_number if transaction else drid,
             branch_name=branch_name,
-            transaction_date=slip.completed_at or datetime.utcnow(),
+            transaction_date=slip.completed_at or datetime.now(timezone.utc),
             customer_name=slip.customer_name
         )
 

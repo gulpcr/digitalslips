@@ -215,7 +215,7 @@ export interface AuditTrailResponse {
 // ============================================
 
 export type ReportType = 'summary' | 'user_activity' | 'trends' | 'branch_comparison' | 'failed' | 'audit';
-export type ExportFormat = 'csv' | 'pdf';
+export type ExportFormat = 'csv' | 'pdf' | 'xlsx';
 
 export interface ExportRequest {
   report_type: ReportType;

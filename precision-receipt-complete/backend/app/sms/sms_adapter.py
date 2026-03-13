@@ -8,7 +8,7 @@ import logging
 import os
 import re
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Optional, Dict, Any, List, Tuple
@@ -77,6 +77,12 @@ class SessionState(str, Enum):
     PAYORDER_PAYEE_CNIC = "PAYORDER_PAYEE_CNIC"
     PAYORDER_PAYEE_PHONE = "PAYORDER_PAYEE_PHONE"
 
+    # Third-party depositor flow states (BRD: Self vs Third-Party)
+    DEPOSITOR_TYPE = "DEPOSITOR_TYPE"
+    THIRDPARTY_NAME = "THIRDPARTY_NAME"
+    THIRDPARTY_CNIC = "THIRDPARTY_CNIC"
+    THIRDPARTY_PHONE = "THIRDPARTY_PHONE"
+
     # Other states
     ACTIVE_SLIP_OPTIONS = "ACTIVE_SLIP_OPTIONS"
     CUSTOMER_NOT_FOUND_OPTIONS = "CUSTOMER_NOT_FOUND_OPTIONS"
@@ -98,11 +104,11 @@ class UserSession:
 
     def is_expired(self) -> bool:
         """Check if session has expired"""
-        return datetime.utcnow() > self.updated_at + timedelta(minutes=self.TIMEOUT_MINUTES)
+        return datetime.now(timezone.utc) > self.updated_at + timedelta(minutes=self.TIMEOUT_MINUTES)
 
     def touch(self) -> None:
         """Update last activity time"""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def reset(self) -> None:
         """Reset session to initial state"""
@@ -317,7 +323,7 @@ class SMSAdapter:
         """Check if message is a greeting/restart command"""
         greetings = [
             'hi', 'hello', 'hey', 'start', 'menu', 'home',
-            'assalam', 'salam', 'aoa', 'main menu', 'back'
+            'assalam', 'salam', 'aoa', 'main menu', 'back', 'deposit'
         ]
         return any(g in message for g in greetings)
 
@@ -358,6 +364,10 @@ class SMSAdapter:
             SessionState.PAYORDER_PAYEE_NAME: self._handle_payorder_payee_name,
             SessionState.PAYORDER_PAYEE_CNIC: self._handle_payorder_payee_cnic,
             SessionState.PAYORDER_PAYEE_PHONE: self._handle_payorder_payee_phone,
+            SessionState.DEPOSITOR_TYPE: self._handle_depositor_type,
+            SessionState.THIRDPARTY_NAME: self._handle_thirdparty_name,
+            SessionState.THIRDPARTY_CNIC: self._handle_thirdparty_cnic,
+            SessionState.THIRDPARTY_PHONE: self._handle_thirdparty_phone,
             SessionState.ACTIVE_SLIP_OPTIONS: self._handle_active_slip_options,
             SessionState.CUSTOMER_NOT_FOUND_OPTIONS: self._handle_customer_not_found_options,
             SessionState.CONFIRM_OVERWRITE: self._handle_confirm_overwrite,
@@ -404,6 +414,10 @@ class SMSAdapter:
         elif message == '4':
             # Complaints & Support - placeholder
             return self.messages.COMPLAINTS_PLACEHOLDER
+        elif message == '5':
+            # Digital Deposit Slip - direct access (BRD: option 5)
+            session.state = SessionState.DEPOSIT_TYPE
+            return self.messages.DEPOSIT_TYPE_MENU
         else:
             return self.messages.INVALID_OPTION + "\n" + self.messages.GREETING
 
@@ -449,6 +463,21 @@ class SMSAdapter:
         elif message == '3':
             # Pay Order
             session.data['transaction_type'] = 'PAY_ORDER'
+            session.state = SessionState.CUSTOMER_TYPE
+            return self.messages.CUSTOMER_TYPE_MENU
+        elif message == '4':
+            # Own Account Transfer
+            session.data['transaction_type'] = 'OWN_ACCOUNT_TRANSFER'
+            session.state = SessionState.CUSTOMER_TYPE
+            return self.messages.CUSTOMER_TYPE_MENU
+        elif message == '5':
+            # Loan Instalment
+            session.data['transaction_type'] = 'LOAN_INSTALMENT'
+            session.state = SessionState.CUSTOMER_TYPE
+            return self.messages.CUSTOMER_TYPE_MENU
+        elif message == '6':
+            # Charity / Zakat
+            session.data['transaction_type'] = 'CHARITY_ZAKAT'
             session.state = SessionState.CUSTOMER_TYPE
             return self.messages.CUSTOMER_TYPE_MENU
         else:
@@ -818,8 +847,13 @@ _Reply with the option number_"""
                     session.state = SessionState.PAYORDER_PAYEE_NAME
                     return self.messages.PAYORDER_PAYEE_NAME_REQUEST
 
-                # For cheque deposits, amount is already set from OCR - skip to confirmation
+                # For cheque deposits, amount is already set from OCR
                 if session.data.get('amount'):
+                    # BRD: Meezan customers choosing Cash or Cheque must select Self vs Third-Party
+                    if self._should_ask_depositor_type(session):
+                        session.state = SessionState.DEPOSITOR_TYPE
+                        return self.messages.DEPOSITOR_TYPE_MENU
+
                     session.state = SessionState.CONFIRMATION
                     return self.messages.confirmation_summary(
                         account_number=session.data.get('selected_account'),
@@ -860,12 +894,123 @@ _Reply with the option number_"""
             return self.messages.INVALID_AMOUNT
 
         session.data['amount'] = amount
+
+        # BRD: Meezan customers choosing Cash or Cheque deposit must select Self vs Third-Party
+        if self._should_ask_depositor_type(session):
+            session.state = SessionState.DEPOSITOR_TYPE
+            return self.messages.DEPOSITOR_TYPE_MENU
+
         session.state = SessionState.CONFIRMATION
 
         return self.messages.confirmation_summary(
             account_number=session.data.get('selected_account'),
             customer_name=session.data.get('customer_name'),
             amount=amount,
+            transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
+            depositor_name=session.data.get('depositor_name'),
+            depositor_cnic=session.data.get('depositor_cnic'),
+            depositor_phone=session.data.get('depositor_phone'),
+            payee_name=session.data.get('payee_name'),
+            payee_cnic=session.data.get('payee_cnic'),
+            payee_phone=session.data.get('payee_phone')
+        )
+
+    # ============================================
+    # DEPOSITOR TYPE HANDLERS (BRD: Self vs Third-Party)
+    # ============================================
+
+    def _should_ask_depositor_type(self, session: UserSession) -> bool:
+        """Check if we should ask Self vs Third-Party depositor (BRD requirement).
+        Only for Meezan customers doing Cash or Cheque deposits."""
+        return (
+            session.data.get('is_meezan_customer') is True
+            and session.data.get('transaction_type') in ('CASH_DEPOSIT', 'CHEQUE_DEPOSIT')
+        )
+
+    async def _handle_depositor_type(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle Self vs Third-Party depositor selection"""
+        if message == '1':
+            # Self - account holder will deposit
+            session.data['depositor_relationship'] = 'SELF'
+            session.state = SessionState.CONFIRMATION
+            return self.messages.confirmation_summary(
+                account_number=session.data.get('selected_account'),
+                customer_name=session.data.get('customer_name'),
+                amount=session.data.get('amount'),
+                transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
+                depositor_name=session.data.get('depositor_name'),
+                depositor_cnic=session.data.get('depositor_cnic'),
+                depositor_phone=session.data.get('depositor_phone'),
+                payee_name=session.data.get('payee_name'),
+                payee_cnic=session.data.get('payee_cnic'),
+                payee_phone=session.data.get('payee_phone')
+            )
+        elif message == '2':
+            # Third Party - collect depositor details
+            session.data['depositor_relationship'] = 'THIRD_PARTY'
+            session.state = SessionState.THIRDPARTY_NAME
+            return self.messages.THIRDPARTY_NAME_REQUEST
+        else:
+            return self.messages.INVALID_OPTION + "\n" + self.messages.DEPOSITOR_TYPE_MENU
+
+    async def _handle_thirdparty_name(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle third-party depositor name input"""
+        name = original_message.strip()
+        if len(name) < 3:
+            return "Please enter a valid name (at least 3 characters):\n" + self.messages.THIRDPARTY_NAME_REQUEST
+
+        session.data['depositor_name'] = name
+        session.state = SessionState.THIRDPARTY_CNIC
+        return self.messages.THIRDPARTY_CNIC_REQUEST
+
+    async def _handle_thirdparty_cnic(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle third-party depositor CNIC input"""
+        if not self.messages.validate_cnic(original_message):
+            return self.messages.INVALID_CNIC
+
+        cnic = self.messages.format_cnic(original_message)
+        session.data['depositor_cnic'] = cnic
+        session.state = SessionState.THIRDPARTY_PHONE
+        return self.messages.THIRDPARTY_PHONE_REQUEST
+
+    async def _handle_thirdparty_phone(
+        self,
+        session: UserSession,
+        message: str,
+        original_message: str,
+        media_url: Optional[str]
+    ) -> str:
+        """Handle third-party depositor phone input"""
+        if not self.messages.validate_phone(original_message):
+            return self.messages.INVALID_PHONE
+
+        phone = self.messages.clean_phone_number(original_message)
+        session.data['depositor_phone'] = phone
+
+        # All depositor details collected — proceed to confirmation
+        session.state = SessionState.CONFIRMATION
+        return self.messages.confirmation_summary(
+            account_number=session.data.get('selected_account'),
+            customer_name=session.data.get('customer_name'),
+            amount=session.data.get('amount'),
             transaction_type=session.data.get('transaction_type', 'CASH_DEPOSIT').replace('_', ' ').title(),
             depositor_name=session.data.get('depositor_name'),
             depositor_cnic=session.data.get('depositor_cnic'),

@@ -3,7 +3,7 @@
 DRID (Digital Reference ID) Service
 Handles generation, validation, and lifecycle management of Digital Deposit Slips
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from decimal import Decimal
@@ -11,13 +11,19 @@ import uuid
 import hashlib
 import json
 
+import logging
+import re
+
 from app.models import (
-    DigitalDepositSlip, Customer, Account, Branch, Transaction, Receipt,
+    DigitalDepositSlip, Customer, Account, Branch, Transaction, Receipt, AuditLog,
     DepositSlipStatus, TransactionType, TransactionCategory, TransactionStatus,
-    Channel, ReceiptType
+    Channel, ReceiptType, AccountStatus, Severity
 )
+
+logger = logging.getLogger(__name__)
 from app.services.qr_service import QRService
 from app.services.receipt_service import ReceiptService
+from app.services.aml_service import AMLService, AMLCheckResult
 from app.schemas.deposit_slip import DRIDValidationResult
 
 
@@ -27,15 +33,49 @@ class DRIDService:
     # Default validity period in minutes
     DEFAULT_VALIDITY_MINUTES = 60
 
-    # DRID format: DRID-YYYYMMDD-XXXXXX (6 char unique suffix)
-    DRID_PREFIX = "DRID"
+    # DRID format: MZ-YYYY-XXXXXXXX (8 char unique suffix)
+    DRID_PREFIX = "MZ"
+    DRID_UNIQUE_PART_LENGTH = 8
+    DRID_MAX_GENERATION_RETRIES = 5
+
+    # Phone validation regex (Pakistani format)
+    PHONE_REGEX = re.compile(r"^\+?92\d{10}$|^0\d{10}$")
+
+    @staticmethod
+    def _write_audit_log(
+        db: Session,
+        drid: str,
+        old_status: str,
+        new_status: str,
+        user_id: Optional[str] = None,
+        details: Optional[str] = None
+    ):
+        """Write an audit log entry for DRID state transitions"""
+        try:
+            audit = AuditLog(
+                user_id=user_id if user_id else None,
+                action=f"DRID_{new_status}",
+                entity_type="DigitalDepositSlip",
+                entity_id=drid,
+                old_data={"status": old_status},
+                new_data={"status": new_status},
+                changes={"status": {"old": old_status, "new": new_status}},
+                severity=Severity.INFO,
+                success=True,
+            )
+            if details:
+                audit.error_message = details  # reuse field for extra info
+            db.add(audit)
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to write DRID audit log: {e}")
 
     @staticmethod
     def generate_drid() -> str:
-        """Generate a unique Digital Reference ID"""
-        date_part = datetime.utcnow().strftime("%Y%m%d")
-        unique_part = str(uuid.uuid4())[:6].upper()
-        return f"{DRIDService.DRID_PREFIX}-{date_part}-{unique_part}"
+        """Generate a unique Digital Reference ID (MZ-YYYY-XXXXXXXX)"""
+        year_part = datetime.now(timezone.utc).strftime("%Y")
+        unique_part = str(uuid.uuid4()).replace("-", "")[:DRIDService.DRID_UNIQUE_PART_LENGTH].upper()
+        return f"{DRIDService.DRID_PREFIX}-{year_part}-{unique_part}"
 
     @staticmethod
     def generate_qr_code_for_drid(drid: str, amount: Decimal, customer_name: str) -> str:
@@ -88,60 +128,72 @@ class DRIDService:
             DigitalDepositSlip.customer_cnic == customer_cnic,
             DigitalDepositSlip.customer_account == customer_account,
             DigitalDepositSlip.status.in_([DepositSlipStatus.INITIATED, DepositSlipStatus.RETRIEVED, DepositSlipStatus.VERIFIED]),
-            DigitalDepositSlip.expires_at > datetime.utcnow()
+            DigitalDepositSlip.expires_at > datetime.now(timezone.utc)
         ).first()
 
         if existing:
             # Return special error code that can be handled by caller
             return None, f"EXISTING_SLIP:{existing.drid}"
 
-        # Generate unique DRID
-        drid = DRIDService.generate_drid()
-
-        # Ensure DRID is unique
-        while db.query(DigitalDepositSlip).filter(DigitalDepositSlip.drid == drid).first():
-            drid = DRIDService.generate_drid()
+        # Validate phone if provided
+        phone_to_use = depositor_phone or customer.phone
+        if phone_to_use and not DRIDService.PHONE_REGEX.match(phone_to_use.replace("-", "").replace(" ", "")):
+            logger.warning(f"Invalid phone format: {phone_to_use}")
 
         # Calculate expiry
-        expires_at = datetime.utcnow() + timedelta(minutes=validity)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=validity)
 
-        # Generate QR code
-        qr_code_data = DRIDService.generate_qr_code_for_drid(drid, amount, customer.full_name)
+        # Generate DRID with retry on uniqueness collision
+        from sqlalchemy.exc import IntegrityError
 
-        # Create deposit slip
-        deposit_slip = DigitalDepositSlip(
-            drid=drid,
-            status=DepositSlipStatus.INITIATED,
-            expires_at=expires_at,
-            validity_minutes=validity,
-            transaction_type=TransactionType[transaction_type],
-            customer_cnic=customer_cnic,
-            customer_account=customer_account,
-            amount=amount,
-            currency=currency,
-            narration=narration,
-            depositor_name=depositor_name or customer.full_name,
-            depositor_cnic=depositor_cnic,
-            depositor_phone=depositor_phone or customer.phone,
-            depositor_relationship=depositor_relationship,
-            channel=Channel[channel],
-            device_info=device_info,
-            ip_address=ip_address,
-            customer_id=customer.id,
-            customer_name=customer.full_name,
-            customer_phone=customer.phone,
-            customer_email=customer.email,
-            account_id=account.id,
-            branch_id=account.branch_id,
-            qr_code_data=qr_code_data,
-            extra_data=additional_data  # Store type-specific data (cheque, bill payment, etc.)
-        )
+        for attempt in range(DRIDService.DRID_MAX_GENERATION_RETRIES):
+            drid = DRIDService.generate_drid()
 
-        db.add(deposit_slip)
-        db.commit()
-        db.refresh(deposit_slip)
+            # Generate QR code
+            qr_code_data = DRIDService.generate_qr_code_for_drid(drid, amount, customer.full_name)
 
-        return deposit_slip, None
+            # Create deposit slip
+            deposit_slip = DigitalDepositSlip(
+                drid=drid,
+                status=DepositSlipStatus.INITIATED,
+                expires_at=expires_at,
+                validity_minutes=validity,
+                transaction_type=TransactionType[transaction_type],
+                customer_cnic=customer_cnic,
+                customer_account=customer_account,
+                amount=amount,
+                currency=currency,
+                narration=narration,
+                depositor_name=depositor_name or customer.full_name,
+                depositor_cnic=depositor_cnic,
+                depositor_phone=phone_to_use,
+                depositor_relationship=depositor_relationship,
+                channel=Channel[channel],
+                device_info=device_info,
+                ip_address=ip_address,
+                customer_id=customer.id,
+                customer_name=customer.full_name,
+                customer_phone=customer.phone,
+                customer_email=customer.email,
+                account_id=account.id,
+                branch_id=account.branch_id,
+                qr_code_data=qr_code_data,
+                extra_data=additional_data  # Store type-specific data (cheque, bill payment, etc.)
+            )
+
+            try:
+                db.add(deposit_slip)
+                db.commit()
+                db.refresh(deposit_slip)
+                DRIDService._write_audit_log(db, drid, "NEW", "INITIATED", details=f"Channel={channel}")
+                return deposit_slip, None
+            except IntegrityError:
+                db.rollback()
+                logger.warning(f"DRID collision on attempt {attempt + 1}: {drid}")
+                if attempt == DRIDService.DRID_MAX_GENERATION_RETRIES - 1:
+                    return None, "Failed to generate unique DRID after multiple retries"
+
+        return None, "DRID generation failed"
 
     @staticmethod
     def validate_drid(db: Session, drid: str) -> DRIDValidationResult:
@@ -168,12 +220,13 @@ class DRIDService:
 
         # Update validation tracking
         slip.validation_attempts += 1
-        slip.last_validation_at = datetime.utcnow()
+        slip.last_validation_at = datetime.now(timezone.utc)
         db.commit()
 
-        now = datetime.utcnow()
-        is_expired = now > slip.expires_at
-        time_remaining = max(0, int((slip.expires_at - now).total_seconds())) if not is_expired else 0
+        now = datetime.now(timezone.utc)
+        expires_at = slip.expires_at.replace(tzinfo=timezone.utc) if slip.expires_at.tzinfo is None else slip.expires_at
+        is_expired = now > expires_at
+        time_remaining = max(0, int((expires_at - now).total_seconds())) if not is_expired else 0
 
         # Check if expired
         if is_expired and slip.status == DepositSlipStatus.INITIATED:
@@ -251,11 +304,15 @@ class DRIDService:
 
         # Mark as retrieved (only if INITIATED)
         if slip.status == DepositSlipStatus.INITIATED:
+            old_status = slip.status.value
             slip.status = DepositSlipStatus.RETRIEVED
-            slip.retrieved_at = datetime.utcnow()
+            slip.retrieved_at = datetime.now(timezone.utc)
             slip.retrieved_by = teller_id
+            db.commit()
+            DRIDService._write_audit_log(db, drid, old_status, "RETRIEVED", user_id=teller_id)
+        else:
+            db.commit()
 
-        db.commit()
         db.refresh(slip)
 
         return slip, None
@@ -287,7 +344,8 @@ class DRIDService:
             return None, f"Cannot verify: current status is {slip.status.value}"
 
         # Check if expired
-        if datetime.utcnow() > slip.expires_at:
+        _expires = slip.expires_at.replace(tzinfo=timezone.utc) if slip.expires_at.tzinfo is None else slip.expires_at
+        if datetime.now(timezone.utc) > _expires:
             slip.status = DepositSlipStatus.EXPIRED
             db.commit()
             return None, "DRID has expired"
@@ -305,12 +363,14 @@ class DRIDService:
                 return None, "Instrument must be verified for cheque/pay order transactions"
 
         # Mark as verified
+        old_status = slip.status.value
         slip.status = DepositSlipStatus.VERIFIED
-        slip.verified_at = datetime.utcnow()
+        slip.verified_at = datetime.now(timezone.utc)
         slip.verified_by = teller_id
 
         db.commit()
         db.refresh(slip)
+        DRIDService._write_audit_log(db, drid, old_status, "VERIFIED", user_id=teller_id)
 
         return slip, None
 
@@ -321,7 +381,7 @@ class DRIDService:
         teller_id: str,
         authorization_captured: bool,
         teller_notes: Optional[str] = None
-    ) -> Tuple[Optional[DigitalDepositSlip], Optional[Transaction], Optional[str]]:
+    ) -> Tuple[Optional[DigitalDepositSlip], Optional[Transaction], Optional[str], Optional[AMLCheckResult]]:
         """
         Complete deposit slip and create actual transaction
 
@@ -330,31 +390,43 @@ class DRIDService:
         - Links to deposit slip
         - Marks as COMPLETED
         """
-        slip = db.query(DigitalDepositSlip).filter(DigitalDepositSlip.drid == drid).first()
+        # Lock the row to prevent double-spend / concurrent completion
+        slip = db.query(DigitalDepositSlip).filter(
+            DigitalDepositSlip.drid == drid
+        ).with_for_update().first()
 
         if not slip:
-            return None, None, "DRID not found"
+            return None, None, "DRID not found", None
 
         # Must be in VERIFIED status
         if slip.status != DepositSlipStatus.VERIFIED:
-            return None, None, f"Cannot complete: current status is {slip.status.value}"
+            return None, None, f"Cannot complete: current status is {slip.status.value}", None
 
         # Check if expired
-        if datetime.utcnow() > slip.expires_at:
+        _expires = slip.expires_at.replace(tzinfo=timezone.utc) if slip.expires_at.tzinfo is None else slip.expires_at
+        if datetime.now(timezone.utc) > _expires:
             slip.status = DepositSlipStatus.EXPIRED
             db.commit()
-            return None, None, "DRID has expired"
+            return None, None, "DRID has expired", None
 
         if not authorization_captured:
-            return None, None, "Customer authorization must be captured"
+            return None, None, "Customer authorization must be captured", None
+
+        # Check that the target account is still active
+        if slip.account_id:
+            account = db.query(Account).filter(Account.id == slip.account_id).first()
+            if account and account.account_status != AccountStatus.ACTIVE:
+                return None, None, f"Account is not active (status: {account.account_status.value})", None
 
         # Mark as processing
+        old_status = slip.status.value
         slip.status = DepositSlipStatus.PROCESSING
         db.commit()
+        DRIDService._write_audit_log(db, drid, old_status, "PROCESSING", user_id=teller_id)
 
         try:
             # Generate transaction reference
-            ref_number = f"TXN-{datetime.utcnow().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+            ref_number = f"TXN-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
             # Determine transaction category
             category_map = {
@@ -362,7 +434,10 @@ class DRIDService:
                 TransactionType.CHEQUE_DEPOSIT: TransactionCategory.DEPOSIT,
                 TransactionType.PAY_ORDER: TransactionCategory.PAYMENT,
                 TransactionType.BILL_PAYMENT: TransactionCategory.PAYMENT,
-                TransactionType.FUND_TRANSFER: TransactionCategory.TRANSFER
+                TransactionType.FUND_TRANSFER: TransactionCategory.TRANSFER,
+                TransactionType.OWN_ACCOUNT_TRANSFER: TransactionCategory.TRANSFER,
+                TransactionType.LOAN_INSTALMENT: TransactionCategory.LOAN,
+                TransactionType.CHARITY_ZAKAT: TransactionCategory.CHARITY,
             }
             category = category_map.get(slip.transaction_type, TransactionCategory.DEPOSIT)
 
@@ -390,7 +465,7 @@ class DRIDService:
                 narration=slip.narration or f"Deposit via DRID: {drid}",
                 branch_id=slip.branch_id,
                 processed_by=teller_id,
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(timezone.utc),
                 extra_data=slip.extra_data  # Copy type-specific data (cheque, bill payment, etc.)
             )
 
@@ -398,25 +473,35 @@ class DRIDService:
             db.commit()
             db.refresh(transaction)
 
+            # AML checks — run before receipt creation
+            customer_for_aml = db.query(Customer).filter(
+                Customer.id == transaction.customer_id
+            ).first()
+            aml_result = AMLService.run_checks(
+                db=db, transaction=transaction, customer=customer_for_aml
+            )
+            db.refresh(transaction)
+
             # Create receipt
             ReceiptService.create_receipt(db, transaction, "DIGITAL")
 
             # Update deposit slip
             slip.status = DepositSlipStatus.COMPLETED
-            slip.completed_at = datetime.utcnow()
+            slip.completed_at = datetime.now(timezone.utc)
             slip.completed_by = teller_id
             slip.transaction_id = transaction.id
 
             db.commit()
             db.refresh(slip)
+            DRIDService._write_audit_log(db, drid, "PROCESSING", "COMPLETED", user_id=teller_id)
 
-            return slip, transaction, None
+            return slip, transaction, None, aml_result
 
         except Exception as e:
             # Rollback on error
             slip.status = DepositSlipStatus.VERIFIED  # Revert to verified
             db.commit()
-            return None, None, f"Error creating transaction: {str(e)}"
+            return None, None, f"Error creating transaction: {str(e)}", None
 
     @staticmethod
     def cancel_deposit_slip(
@@ -435,13 +520,15 @@ class DRIDService:
         if slip.status in [DepositSlipStatus.COMPLETED, DepositSlipStatus.EXPIRED]:
             return None, f"Cannot cancel: current status is {slip.status.value}"
 
+        old_status = slip.status.value
         slip.status = DepositSlipStatus.CANCELLED
-        slip.cancelled_at = datetime.utcnow()
+        slip.cancelled_at = datetime.now(timezone.utc)
         # cancelled_by can be a UUID (user) or None (customer cancellation)
         if cancelled_by and cancelled_by != "CUSTOMER":
             try:
                 slip.cancelled_by = cancelled_by
-            except:
+            except Exception as e:
+                logger.warning(f"UUID parse error for cancelled_by: {e}")
                 slip.cancelled_by = None
         else:
             slip.cancelled_by = None
@@ -449,6 +536,7 @@ class DRIDService:
 
         db.commit()
         db.refresh(slip)
+        DRIDService._write_audit_log(db, drid, old_status, "CANCELLED", user_id=cancelled_by if cancelled_by != "CUSTOMER" else None, details=reason)
 
         return slip, None
 
@@ -467,7 +555,7 @@ class DRIDService:
                 DepositSlipStatus.RETRIEVED,
                 DepositSlipStatus.VERIFIED
             ]),
-            DigitalDepositSlip.expires_at > datetime.utcnow()
+            DigitalDepositSlip.expires_at > datetime.now(timezone.utc)
         ).all()
 
     @staticmethod
@@ -478,7 +566,7 @@ class DRIDService:
         """
         expired = db.query(DigitalDepositSlip).filter(
             DigitalDepositSlip.status == DepositSlipStatus.INITIATED,
-            DigitalDepositSlip.expires_at < datetime.utcnow()
+            DigitalDepositSlip.expires_at < datetime.now(timezone.utc)
         ).all()
 
         count = 0

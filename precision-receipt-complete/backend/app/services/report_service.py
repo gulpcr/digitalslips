@@ -91,8 +91,8 @@ class ReportService:
         if filters.user_id and current_user.role in [UserRole.ADMIN, UserRole.AUDITOR, UserRole.MANAGER]:
             query = query.filter(Transaction.processed_by == filters.user_id)
 
-        # Get filtered transaction IDs
-        filtered_ids = [t.id for t in query.all()]
+        # Get filtered transaction IDs (use with_entities to avoid loading full objects)
+        filtered_ids = [row[0] for row in query.with_entities(Transaction.id).all()]
 
         if not filtered_ids:
             # No transactions found
@@ -345,8 +345,8 @@ class ReportService:
         if filters.branch_id and current_user.role in [UserRole.ADMIN, UserRole.AUDITOR]:
             query = query.filter(Transaction.branch_id == filters.branch_id)
 
-        # Get filtered transaction IDs
-        filtered_ids = [t.id for t in query.all()]
+        # Get filtered transaction IDs (use with_entities to avoid loading full objects)
+        filtered_ids = [row[0] for row in query.with_entities(Transaction.id).all()]
 
         if not filtered_ids:
             return TransactionTrendReport(
@@ -521,7 +521,7 @@ class ReportService:
         total_failed_amount = db.query(
             func.coalesce(func.sum(Transaction.amount), 0)
         ).filter(
-            Transaction.id.in_([t.id for t in query.all()])
+            Transaction.id.in_([row[0] for row in query.with_entities(Transaction.id).all()])
         ).scalar() or Decimal(0) if total_failed > 0 else Decimal(0)
 
         # Paginate
@@ -727,4 +727,133 @@ class ReportService:
                     entry.entity_id or 'N/A', entry.ip_address or 'N/A'
                 ])
 
+        return output.getvalue()
+
+    @staticmethod
+    def export_to_pdf(report_type: str, data: Any) -> bytes:
+        """Export report data to PDF format using fpdf2"""
+        from fpdf import FPDF
+
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(0, 10, "Meezan Bank - Precision Receipt", ln=True, align="C")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 8, f"Report: {report_type.replace('_', ' ').title()}", ln=True, align="C")
+        pdf.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align="C")
+        pdf.ln(5)
+
+        pdf.set_font("Helvetica", "B", 9)
+
+        if report_type == 'summary':
+            headers = ['Metric', 'Count', 'Amount (PKR)']
+            col_w = [60, 40, 60]
+            for i, h in enumerate(headers):
+                pdf.cell(col_w[i], 8, h, border=1)
+            pdf.ln()
+            pdf.set_font("Helvetica", "", 9)
+            rows = [
+                ('Total', data.total_count, data.total_amount),
+                ('Completed', data.completed_count, data.completed_amount),
+                ('Pending', data.pending_count, data.pending_amount),
+                ('Failed', data.failed_count, data.failed_amount),
+                ('Cancelled', data.cancelled_count, data.cancelled_amount),
+            ]
+            for label, count, amount in rows:
+                pdf.cell(col_w[0], 7, label, border=1)
+                pdf.cell(col_w[1], 7, str(count), border=1)
+                pdf.cell(col_w[2], 7, str(amount), border=1)
+                pdf.ln()
+
+        elif report_type == 'user_activity':
+            headers = ['User', 'Role', 'Transactions', 'Amount', 'Success %']
+            col_w = [40, 25, 30, 45, 25]
+            for i, h in enumerate(headers):
+                pdf.cell(col_w[i], 8, h, border=1)
+            pdf.ln()
+            pdf.set_font("Helvetica", "", 8)
+            for u in data.users:
+                pdf.cell(col_w[0], 7, u.full_name[:20], border=1)
+                pdf.cell(col_w[1], 7, u.role, border=1)
+                pdf.cell(col_w[2], 7, str(u.total_transactions), border=1)
+                pdf.cell(col_w[3], 7, str(u.total_amount), border=1)
+                pdf.cell(col_w[4], 7, f"{u.success_rate}%", border=1)
+                pdf.ln()
+
+        elif report_type == 'branch_comparison':
+            headers = ['Branch', 'Transactions', 'Amount', 'Success %']
+            col_w = [50, 35, 50, 30]
+            for i, h in enumerate(headers):
+                pdf.cell(col_w[i], 8, h, border=1)
+            pdf.ln()
+            pdf.set_font("Helvetica", "", 8)
+            for b in data.branches:
+                pdf.cell(col_w[0], 7, b.branch_name[:25], border=1)
+                pdf.cell(col_w[1], 7, str(b.total_transactions), border=1)
+                pdf.cell(col_w[2], 7, str(b.total_amount), border=1)
+                pdf.cell(col_w[3], 7, f"{b.success_rate}%", border=1)
+                pdf.ln()
+
+        else:
+            # Generic: dump CSV-like into PDF
+            csv_str = ReportService.export_to_csv(report_type, data)
+            pdf.set_font("Courier", "", 7)
+            for line in csv_str.split('\n')[:200]:
+                pdf.cell(0, 5, line[:120], ln=True)
+
+        return pdf.output()
+
+    @staticmethod
+    def export_to_excel(report_type: str, data: Any) -> bytes:
+        """Export report data to Excel format using openpyxl"""
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = report_type.replace('_', ' ').title()
+
+        if report_type == 'summary':
+            ws.append(['Metric', 'Count', 'Amount (PKR)'])
+            ws.append(['Total', data.total_count, float(data.total_amount)])
+            ws.append(['Completed', data.completed_count, float(data.completed_amount)])
+            ws.append(['Pending', data.pending_count, float(data.pending_amount)])
+            ws.append(['Failed', data.failed_count, float(data.failed_amount)])
+            ws.append(['Cancelled', data.cancelled_count, float(data.cancelled_amount)])
+            ws.append([])
+            ws.append(['By Type', 'Count', 'Amount (PKR)'])
+            for type_name, bd in data.by_type.items():
+                ws.append([type_name, bd.count, float(bd.amount)])
+
+        elif report_type == 'user_activity':
+            ws.append(['Username', 'Full Name', 'Role', 'Branch', 'Transactions', 'Amount', 'Completed', 'Failed', 'Success Rate'])
+            for u in data.users:
+                ws.append([u.username, u.full_name, u.role, u.branch_name or 'N/A',
+                           u.total_transactions, float(u.total_amount), u.completed_count, u.failed_count, u.success_rate])
+
+        elif report_type == 'trends':
+            ws.append(['Period', 'Transactions', 'Amount', 'Completed', 'Failed', 'Pending'])
+            for p in data.data_points:
+                ws.append([p.period_label, p.transaction_count, float(p.total_amount), p.completed_count, p.failed_count, p.pending_count])
+
+        elif report_type == 'branch_comparison':
+            ws.append(['Branch Code', 'Branch Name', 'Transactions', 'Amount', 'Completed', 'Failed', 'Success Rate', 'Active Tellers'])
+            for b in data.branches:
+                ws.append([b.branch_code, b.branch_name, b.total_transactions, float(b.total_amount),
+                           b.completed_count, b.failed_count, b.success_rate, b.active_tellers])
+
+        elif report_type == 'failed':
+            ws.append(['Reference', 'Type', 'Customer', 'CNIC', 'Amount', 'Branch', 'Processor', 'Failure Reason', 'Date'])
+            for t in data.transactions:
+                ws.append([t.reference_number, t.transaction_type, t.customer_name, t.customer_cnic,
+                           float(t.amount), t.branch_name or 'N/A', t.processor_name or 'N/A',
+                           t.failure_reason or 'N/A', t.created_at.strftime('%Y-%m-%d %H:%M')])
+
+        elif report_type == 'audit':
+            ws.append(['Date/Time', 'User', 'Action', 'Entity Type', 'Entity ID', 'IP Address'])
+            for e in data.entries:
+                ws.append([e.created_at.strftime('%Y-%m-%d %H:%M:%S'), e.username or 'System',
+                           e.action, e.entity_type, e.entity_id or 'N/A', e.ip_address or 'N/A'])
+
+        output = io.BytesIO()
+        wb.save(output)
         return output.getvalue()

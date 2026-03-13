@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr
 import uuid
 import base64
@@ -224,7 +224,7 @@ async def verify_receipt(
     # Update verification
     receipt.is_verified = True
     receipt.verified_count += 1
-    receipt.last_verified_at = datetime.utcnow()
+    receipt.last_verified_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(receipt)
 

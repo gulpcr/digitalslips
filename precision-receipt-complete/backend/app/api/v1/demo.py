@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
 
@@ -96,7 +96,7 @@ async def create_demo_customer(
         province="Sindh",
         gender=Gender.MALE,
         is_verified=True,
-        verified_at=datetime.utcnow(),
+        verified_at=datetime.now(timezone.utc),
         kyc_status=KycStatus.VERIFIED
     )
 
@@ -254,7 +254,7 @@ async def seed_database(
             is_active=True,
             is_locked=False,
             failed_login_attempts=0,
-            password_changed_at=datetime.utcnow()
+            password_changed_at=datetime.now(timezone.utc)
         )
         db.add(admin)
         db.commit()
@@ -281,7 +281,7 @@ async def seed_database(
             is_active=True,
             is_locked=False,
             failed_login_attempts=0,
-            password_changed_at=datetime.utcnow()
+            password_changed_at=datetime.now(timezone.utc)
         )
         db.add(teller)
         db.commit()

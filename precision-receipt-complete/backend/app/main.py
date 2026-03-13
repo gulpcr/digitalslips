@@ -47,6 +47,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
 
+    # Migrate PostgreSQL enums for new transaction types / categories
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for val in ('OWN_ACCOUNT_TRANSFER', 'LOAN_INSTALMENT', 'CHARITY_ZAKAT'):
+            try:
+                conn.execute(text(f"ALTER TYPE transactiontype ADD VALUE IF NOT EXISTS '{val}'"))
+            except Exception:
+                pass
+        for val in ('LOAN', 'CHARITY'):
+            try:
+                conn.execute(text(f"ALTER TYPE transactioncategory ADD VALUE IF NOT EXISTS '{val}'"))
+            except Exception:
+                pass
+        conn.commit()
+    logger.info("PostgreSQL enum migration complete")
+
     # Initialize digital signature service (SBP Compliance)
     logger.info("Initializing digital signature service...")
     if SignatureService.initialize():
@@ -69,20 +85,20 @@ app = FastAPI(
     redoc_url="/api/redoc" if settings.ENABLE_SWAGGER_DOCS else None,
     openapi_url="/api/openapi.json" if settings.ENABLE_SWAGGER_DOCS else None,
     lifespan=lifespan,
-    redirect_slashes=True
+    redirect_slashes=False
 )
 
 # ================================
 # MIDDLEWARE CONFIGURATION
 # ================================
 
-# CORS Middleware - Allow all for development
+# CORS Middleware - Use configured origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS.split(","),
+    allow_headers=settings.CORS_ALLOW_HEADERS.split(","),
 )
 
 # GZip Middleware
@@ -183,13 +199,55 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint — verifies DB and Redis connectivity"""
+    from app.core.database import SessionLocal
+    checks = {"db": "unknown", "redis": "unknown"}
+
+    # Check DB
+    try:
+        db = SessionLocal()
+        db.execute(db.bind.dialect.server_version_info if hasattr(db.bind, 'dialect') else None)  # type: ignore[arg-type]
+        # Simple connectivity test
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+        checks["db"] = "healthy"
+    except Exception as e:
+        checks["db"] = f"unhealthy: {e}"
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    # Check Redis
+    try:
+        if settings.REDIS_ENABLED:
+            import redis
+            r = redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                password=settings.REDIS_PASSWORD or None,
+                db=settings.REDIS_DB,
+                socket_timeout=2,
+            )
+            r.ping()
+            checks["redis"] = "healthy"
+        else:
+            checks["redis"] = "disabled"
+    except Exception as e:
+        checks["redis"] = f"unhealthy: {e}"
+
+    overall = "healthy" if all(
+        v in ("healthy", "disabled") for v in checks.values()
+    ) else "degraded"
+
     return {
-        "success": True,
-        "status": "healthy",
+        "success": overall == "healthy",
+        "status": overall,
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "environment": settings.NODE_ENV,
+        "checks": checks,
         "timestamp": time.time()
     }
 
@@ -205,7 +263,7 @@ async def ping():
 # ================================
 
 # Import routers
-from app.api.v1 import auth, transactions, receipts, customers, users, branches, deposit_slips, demo, reports, cheque_ocr
+from app.api.v1 import auth, transactions, receipts, customers, users, branches, deposit_slips, demo, reports, cheque_ocr, settings as system_settings
 
 # Include routers with /api/v1 prefix
 API_PREFIX = f"/api/{settings.API_VERSION}"
@@ -268,6 +326,12 @@ app.include_router(
     cheque_ocr.router,
     prefix=f"{API_PREFIX}/cheque-ocr",
     tags=["Cheque OCR"]
+)
+
+app.include_router(
+    system_settings.router,
+    prefix=f"{API_PREFIX}/settings",
+    tags=["System Settings"]
 )
 
 logger.info("API routers loaded successfully")

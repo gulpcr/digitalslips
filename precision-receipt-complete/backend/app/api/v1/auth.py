@@ -3,6 +3,7 @@
 Authentication API Endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
 import uuid
@@ -10,12 +11,15 @@ import uuid
 from app.core.database import get_db
 from app.services.auth_service import AuthService
 from app.middleware.auth import get_current_active_user
+from app.services.token_blacklist import token_blacklist
 from app.models import User
 from app.schemas.user import (
     LoginRequest, LoginResponse, UserResponse,
     PasswordChangeRequest, PasswordResetRequest
 )
 from app.schemas.common import ResponseBase
+
+security_scheme = HTTPBearer(auto_error=False)
 
 router = APIRouter()
 
@@ -70,14 +74,16 @@ async def login(
 
 @router.post("/logout", response_model=ResponseBase)
 async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Logout current user (invalidate session)
+    Logout current user (invalidate token via blacklist)
     """
-    # In a full implementation, you would invalidate the token
-    # For now, just return success
+    if credentials:
+        token_blacklist.blacklist(credentials.credentials)
+
     return ResponseBase(
         success=True,
         message="Logout successful"

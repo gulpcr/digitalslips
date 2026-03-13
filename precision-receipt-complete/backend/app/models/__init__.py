@@ -67,6 +67,11 @@ class TransactionType(str, enum.Enum):
     PAY_ORDER = "PAY_ORDER"
     BILL_PAYMENT = "BILL_PAYMENT"
     FUND_TRANSFER = "FUND_TRANSFER"
+    OWN_ACCOUNT_TRANSFER = "OWN_ACCOUNT_TRANSFER"
+    LOAN_INSTALMENT = "LOAN_INSTALMENT"
+    CHARITY_ZAKAT = "CHARITY_ZAKAT"
+    WITHDRAWAL = "WITHDRAWAL"
+    REVERSAL = "REVERSAL"
 
 
 class TransactionCategory(str, enum.Enum):
@@ -74,6 +79,8 @@ class TransactionCategory(str, enum.Enum):
     WITHDRAWAL = "WITHDRAWAL"
     TRANSFER = "TRANSFER"
     PAYMENT = "PAYMENT"
+    LOAN = "LOAN"
+    CHARITY = "CHARITY"
 
 
 class TransactionStatus(str, enum.Enum):
@@ -339,6 +346,12 @@ class Transaction(Base):
     reviewer = relationship("User", foreign_keys=[reviewed_by], back_populates="reviewed_transactions")
     receipts = relationship("Receipt", back_populates="transaction")
     notifications = relationship("Notification", back_populates="transaction")
+
+    # Composite indexes for common query patterns
+    __table_args__ = (
+        Index('ix_txn_status_created', 'status', 'created_at'),
+        Index('ix_txn_customer_created', 'customer_id', 'created_at'),
+    )
 
 
 class Receipt(Base):

@@ -16,13 +16,14 @@ from app.schemas.common import ResponseBase
 router = APIRouter()
 
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("", response_model=List[UserResponse])
 async def get_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     role: Optional[str] = None,
     branch_id: Optional[str] = None,
     is_active: Optional[bool] = None,
+    unassigned: Optional[bool] = Query(None, description="If true, return only users with no branch assigned"),
     current_user: User = Depends(require_manager_or_above),
     db: Session = Depends(get_db)
 ):
@@ -38,6 +39,10 @@ async def get_users(
     # Filter by branch
     if branch_id:
         query = query.filter(User.branch_id == branch_id)
+
+    # Filter for unassigned users (no branch)
+    if unassigned:
+        query = query.filter(User.branch_id.is_(None))
 
     # Filter by active status
     if is_active is not None:
@@ -107,7 +112,7 @@ async def get_user(
     )
 
 
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
     current_user: User = Depends(require_admin),

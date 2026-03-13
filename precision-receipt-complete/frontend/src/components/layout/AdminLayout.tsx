@@ -14,6 +14,7 @@ import {
   FiMenu,
   FiX,
   FiChevronLeft,
+  FiSettings,
 } from 'react-icons/fi';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'reports', label: 'Reports', path: '/reports', icon: <FiBarChart2 />, roles: ['ADMIN', 'MANAGER', 'TELLER', 'AUDITOR'] },
   { id: 'users', label: 'Users', path: '/admin/users', icon: <FiUsers />, roles: ['ADMIN'] },
   { id: 'branches', label: 'Branches', path: '/admin/branches', icon: <FiMapPin />, roles: ['ADMIN'] },
+  { id: 'settings', label: 'Settings', path: '/settings', icon: <FiSettings />, roles: ['ADMIN'] },
 ];
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, subtitle, icon }) => {

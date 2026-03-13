@@ -2,7 +2,7 @@
 """
 Authentication Service - Handles user authentication and authorization
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 import logging
@@ -65,7 +65,7 @@ class AuthService:
 
         # Reset failed login attempts on successful login
         user.failed_login_attempts = 0
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc)
         db.commit()
 
         logger.info(f"Successful login: {username}")
@@ -109,7 +109,7 @@ class AuthService:
 
         # Hash and save new password
         user.password_hash = hash_password(new_password)
-        user.password_changed_at = datetime.utcnow()
+        user.password_changed_at = datetime.now(timezone.utc)
         db.commit()
 
         logger.info(f"Password changed for user: {user.username}")
@@ -133,7 +133,7 @@ class AuthService:
             device_info=device_info,
             ip_address=ip_address,
             user_agent=user_agent,
-            expires_at=datetime.utcnow() + timedelta(hours=24)
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24)
         )
 
         db.add(session)

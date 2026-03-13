@@ -21,6 +21,33 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState('');
+  const [extensionDetected, setExtensionDetected] = useState<boolean | null>(null);
+
+  // Check for Chrome Extension presence after 2s delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const marker = document.getElementById('dds-extension-active');
+      if (marker) {
+        setExtensionDetected(true);
+      } else {
+        // Also try postMessage probe
+        const handler = (event: MessageEvent) => {
+          if (event.data?.type === 'DDS_EXTENSION_RESPONSE' && event.data?.active) {
+            setExtensionDetected(true);
+            window.removeEventListener('message', handler);
+          }
+        };
+        window.addEventListener('message', handler);
+        window.postMessage({ type: 'DDS_EXTENSION_CHECK' }, '*');
+        // If no response after 1s, extension not found
+        setTimeout(() => {
+          window.removeEventListener('message', handler);
+          setExtensionDetected(prev => prev === null ? false : prev);
+        }, 1000);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -46,7 +73,7 @@ const Login: React.FC = () => {
 
       if (response.success) {
         // Store auth data
-        setAuth(response.user, response.access_token, response.refresh_token);
+        setAuth(response.user, response.access_token, response.refresh_token, response.expires_in);
 
         toast.success(`Welcome, ${response.user.full_name}!`);
         navigate('/dashboard');
@@ -79,6 +106,23 @@ const Login: React.FC = () => {
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
           {/* Gold top accent */}
           <div className="h-1 bg-gradient-to-r from-gold-600 via-gold to-gold-600"></div>
+
+          {/* Extension Install Banner */}
+          {extensionDetected === false && (
+            <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-start gap-3">
+              <span className="text-amber-500 mt-0.5 flex-shrink-0">&#9888;</span>
+              <div className="text-xs text-amber-800">
+                <p className="font-semibold mb-1">DDS Chrome Extension Required</p>
+                <p>Install the Digital Deposit Slip Assistant extension to enable auto-fill with T24/Transact.</p>
+                <a
+                  href="chrome://extensions"
+                  className="inline-block mt-1.5 text-primary font-medium hover:underline"
+                >
+                  Install Extension &rarr;
+                </a>
+              </div>
+            </div>
+          )}
 
           <div className="p-8">
             {/* Logo inside card */}

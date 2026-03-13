@@ -15,6 +15,7 @@ import {
   FiPhone,
   FiMail,
   FiHome,
+  FiUsers,
 } from 'react-icons/fi';
 import AdminLayout from '../components/layout/AdminLayout';
 import Button from '../components/ui/Button';
@@ -24,6 +25,7 @@ import Table from '../components/ui/Table';
 import toast from 'react-hot-toast';
 import { branchService, BranchCreate, BranchUpdate } from '../services/branch.service';
 import { Branch } from '../types';
+import api from '../services/api';
 
 const BRANCH_TYPES = [
   { value: 'MAIN', label: 'Main Branch', description: 'Head office' },
@@ -61,6 +63,12 @@ const BranchManagement: React.FC = () => {
 
   // Edit form state
   const [editForm, setEditForm] = useState<BranchUpdate>({});
+
+  // Teller assignment state
+  interface TellerInfo { id: string; full_name: string; username: string; role: string; }
+  const [assignedTellers, setAssignedTellers] = useState<TellerInfo[]>([]);
+  const [unassignedTellers, setUnassignedTellers] = useState<TellerInfo[]>([]);
+  const [tellerLoading, setTellerLoading] = useState(false);
 
   // Load branches
   const loadBranches = useCallback(async () => {
@@ -152,6 +160,45 @@ const BranchManagement: React.FC = () => {
     }
   };
 
+  // Fetch assigned tellers for a branch
+  const loadBranchTellers = async (branchId: string) => {
+    setTellerLoading(true);
+    try {
+      const [assignedResp, unassignedResp] = await Promise.all([
+        api.get('/users', { params: { branch_id: branchId, role: 'TELLER', limit: 100 } }),
+        api.get('/users', { params: { unassigned: true, role: 'TELLER', limit: 100 } }),
+      ]);
+      setAssignedTellers(assignedResp.data);
+      setUnassignedTellers(unassignedResp.data);
+    } catch {
+      setAssignedTellers([]);
+      setUnassignedTellers([]);
+    } finally {
+      setTellerLoading(false);
+    }
+  };
+
+  const handleAssignTeller = async (tellerId: string) => {
+    if (!editingBranch) return;
+    try {
+      await api.patch(`/users/${tellerId}`, { branch_id: editingBranch.id });
+      toast.success('Teller assigned');
+      loadBranchTellers(editingBranch.id);
+    } catch {
+      toast.error('Failed to assign teller');
+    }
+  };
+
+  const handleRemoveTeller = async (tellerId: string) => {
+    try {
+      await api.patch(`/users/${tellerId}`, { branch_id: null });
+      toast.success('Teller removed from branch');
+      if (editingBranch) loadBranchTellers(editingBranch.id);
+    } catch {
+      toast.error('Failed to remove teller');
+    }
+  };
+
   // Open edit modal
   const openEditModal = (branch: Branch) => {
     setEditingBranch(branch);
@@ -169,6 +216,7 @@ const BranchManagement: React.FC = () => {
       is_active: branch.is_active,
     });
     setShowEditModal(true);
+    loadBranchTellers(branch.id);
   };
 
   // Handle toggle active
@@ -649,6 +697,69 @@ const BranchManagement: React.FC = () => {
                       </p>
                     </div>
                   </label>
+                </div>
+
+                {/* Assigned Tellers Section */}
+                <div className="md:col-span-2 border-t border-border pt-4 mt-2">
+                  <h3 className="text-lg font-semibold text-text-primary mb-3 flex items-center gap-2">
+                    <FiUsers className="w-5 h-5" />
+                    Assigned Tellers
+                  </h3>
+
+                  {tellerLoading ? (
+                    <p className="text-sm text-text-secondary">Loading tellers...</p>
+                  ) : (
+                    <>
+                      {/* Currently assigned */}
+                      {assignedTellers.length === 0 ? (
+                        <p className="text-sm text-text-secondary mb-3">No tellers assigned to this branch.</p>
+                      ) : (
+                        <div className="space-y-2 mb-4">
+                          {assignedTellers.map((t) => (
+                            <div key={t.id} className="flex items-center justify-between p-2 bg-background-light rounded-lg">
+                              <div>
+                                <span className="text-sm font-medium text-text-primary">{t.full_name}</span>
+                                <span className="text-xs text-text-secondary ml-2">@{t.username}</span>
+                              </div>
+                              <Button variant="ghost" size="sm" onClick={() => handleRemoveTeller(t.id)} className="!text-error">
+                                <FiX className="w-4 h-4" /> Remove
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add unassigned teller */}
+                      {unassignedTellers.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-text-primary mb-1">Add Teller</label>
+                          <div className="flex gap-2">
+                            <select
+                              id="addTellerSelect"
+                              className="flex-1 px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white text-sm"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Select unassigned teller...</option>
+                              {unassignedTellers.map((t) => (
+                                <option key={t.id} value={t.id}>{t.full_name} (@{t.username})</option>
+                              ))}
+                            </select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              leftIcon={<FiPlus />}
+                              onClick={() => {
+                                const sel = document.getElementById('addTellerSelect') as HTMLSelectElement;
+                                if (sel?.value) handleAssignTeller(sel.value);
+                              }}
+                            >
+                              Assign
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="md:col-span-2 flex gap-3 pt-4">

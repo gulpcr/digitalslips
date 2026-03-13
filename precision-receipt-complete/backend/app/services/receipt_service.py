@@ -3,7 +3,7 @@
 Receipt Service - Generates and manages digital receipts
 With digital signature support for SBP compliance
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from decimal import Decimal
@@ -77,7 +77,7 @@ class ReceiptService:
             try:
                 sig_timestamp_dt = datetime.fromisoformat(signature_timestamp.replace('Z', '+00:00'))
             except:
-                sig_timestamp_dt = datetime.utcnow()
+                sig_timestamp_dt = datetime.now(timezone.utc)
 
         # Create receipt with digital signature
         receipt = Receipt(
@@ -151,7 +151,7 @@ class ReceiptService:
 
         # Update verification count
         receipt.verified_count += 1
-        receipt.last_verified_at = datetime.utcnow()
+        receipt.last_verified_at = datetime.now(timezone.utc)
         receipt.is_verified = True
 
         db.commit()

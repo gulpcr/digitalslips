@@ -4,7 +4,7 @@ OTP Service - Send and verify OTPs via Twilio SMS
 """
 import random
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -85,8 +85,8 @@ class OTPService:
                 'otp': otp,
                 'phone': phone,
                 'drid': drid,
-                'created_at': datetime.utcnow(),
-                'expires_at': datetime.utcnow() + timedelta(minutes=OTPService.OTP_EXPIRY_MINUTES),
+                'created_at': datetime.now(timezone.utc),
+                'expires_at': datetime.now(timezone.utc) + timedelta(minutes=OTPService.OTP_EXPIRY_MINUTES),
                 'attempts': 0,
                 'verified': False
             }
@@ -144,7 +144,7 @@ class OTPService:
                 return True, "OTP already verified"
 
             # Check expiry
-            if datetime.utcnow() > otp_data['expires_at']:
+            if datetime.now(timezone.utc) > otp_data['expires_at']:
                 del _otp_store[otp_key]
                 return False, "OTP has expired. Please request a new OTP."
 
@@ -172,7 +172,7 @@ class OTPService:
     @staticmethod
     def cleanup_expired():
         """Remove expired OTPs from store"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired_keys = [
             key for key, data in _otp_store.items()
             if now > data['expires_at']

@@ -1,0 +1,16 @@
+.env
+.env.*
+__pycache__
+*.pyc
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+tests/
+*.md
+.vscode/
+.idea/
+keys/
+logs/
+uploads/
+requirements-dev.txt

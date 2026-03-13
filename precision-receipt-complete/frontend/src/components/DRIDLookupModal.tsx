@@ -17,14 +17,36 @@ import {
 
 interface DRIDLookupModalProps {
   isOpen: boolean;
+  initialDRID?: string;
   onClose: () => void;
   onComplete: (transactionId: string, receiptNumber?: string) => void;
 }
 
 type Step = 'lookup' | 'retrieved' | 'verify' | 'complete' | 'success';
 
+/** Return a type-specific completion verb for the success message */
+const getCompletionVerb = (transactionType: string): string => {
+  switch (transactionType) {
+    case 'CASH_DEPOSIT':
+    case 'CHEQUE_DEPOSIT':
+      return 'Deposited';
+    case 'BILL_PAYMENT':
+    case 'PAY_ORDER':
+    case 'LOAN_INSTALMENT':
+      return 'Paid';
+    case 'FUND_TRANSFER':
+    case 'OWN_ACCOUNT_TRANSFER':
+      return 'Transferred';
+    case 'CHARITY_ZAKAT':
+      return 'Donated';
+    default:
+      return 'Completed';
+  }
+};
+
 const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
   isOpen,
+  initialDRID,
   onClose,
   onComplete,
 }) => {
@@ -38,6 +60,8 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
 
   // Ref for DRID input auto-focus
   const dridInputRef = useRef<HTMLInputElement>(null);
+  // Ref to allow auto-lookup from useEffect without stale closure
+  const handleLookupRef = useRef<(() => void) | null>(null);
 
   // Verification form state
   const [amountConfirmed, setAmountConfirmed] = useState(false);
@@ -62,6 +86,55 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
   const [otpLoading, setOtpLoading] = useState(false);
   const [maskedPhone, setMaskedPhone] = useState('');
 
+  // OTP settings from backend
+  const [otpEnabled, setOtpEnabled] = useState(true);
+  const [otpRequired, setOtpRequired] = useState(false);
+
+  // Fetch OTP settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const resp = await fetch('/api/v1/deposit-slips/settings');
+        if (resp.ok) {
+          const data = await resp.json();
+          setOtpEnabled(data.otp_enabled ?? true);
+          setOtpRequired(data.otp_required ?? false);
+        }
+      } catch { /* ignore */ }
+    };
+    fetchSettings();
+  }, []);
+
+  // Live countdown timer for deposit slip expiry
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+
+  // Sync timeRemaining from depositSlip when it's first loaded
+  useEffect(() => {
+    if (depositSlip?.time_remaining_seconds != null && depositSlip.time_remaining_seconds > 0) {
+      setTimeRemaining(depositSlip.time_remaining_seconds);
+    } else if (depositSlip) {
+      setTimeRemaining(0);
+    }
+  }, [depositSlip]);
+
+  // Countdown timer: decrement every second while deposit slip is active
+  useEffect(() => {
+    if (timeRemaining == null || timeRemaining <= 0) return;
+    if (step === 'success' || step === 'lookup') return;
+
+    const interval = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev == null || prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timeRemaining, step]);
+
   // Auto-focus DRID input when modal opens or returns to lookup
   useEffect(() => {
     if (isOpen && step === 'lookup' && dridInputRef.current) {
@@ -71,6 +144,22 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
       }, 100);
     }
   }, [isOpen, step]);
+
+  // Auto-populate and auto-lookup when initialDRID is provided (from QR scanner)
+  const initialDRIDHandledRef = useRef('');
+  useEffect(() => {
+    if (isOpen && initialDRID && initialDRID !== initialDRIDHandledRef.current && step === 'lookup') {
+      initialDRIDHandledRef.current = initialDRID;
+      setDrid(initialDRID);
+      // Auto-trigger lookup after a brief delay for render
+      setTimeout(() => {
+        handleLookupRef.current?.();
+      }, 200);
+    }
+    if (!isOpen) {
+      initialDRIDHandledRef.current = '';
+    }
+  }, [isOpen, initialDRID, step]);
 
   // Keyboard shortcuts for scan mode
   useEffect(() => {
@@ -121,6 +210,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
     setOtpError('');
     setOtpLoading(false);
     setMaskedPhone('');
+    setTimeRemaining(null);
   };
 
   const quickReset = () => {
@@ -220,8 +310,8 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
           setDrid(lookupDrid.toUpperCase());
         }
       } catch {
-        // Try to extract DRID pattern from raw text
-        const match = lookupDrid.match(/DRID-[\w-]+/i);
+        // Try to extract DRID pattern from raw text (MZ- or legacy DRID-)
+        const match = lookupDrid.match(/MZ-\d{4}-[A-Z0-9]{8}/i) || lookupDrid.match(/DRID-[\w-]+/i);
         if (match) {
           lookupDrid = match[0];
           setDrid(lookupDrid.toUpperCase());
@@ -269,6 +359,9 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
       setLoading(false);
     }
   };
+
+  // Keep ref in sync for scanner auto-lookup
+  handleLookupRef.current = handleLookup;
 
   const handleVerify = async () => {
     if (!depositSlip) return;
@@ -391,14 +484,14 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
               >
                 <Input
                   ref={dridInputRef}
-                  placeholder={scanMode ? "🔍 Scan QR code or type DRID..." : "Enter DRID (e.g., DRID-20240128-ABC123)"}
+                  placeholder={scanMode ? "🔍 Scan QR code or type DRID..." : "Enter DRID (e.g., MZ-2026-A1B2C3D4)"}
                   value={drid}
                   onChange={(e) => {
                     const value = e.target.value;
                     setDrid(value);
                     setError(null);
-                    // Auto-retrieve when a valid DRID pattern is detected
-                    const dridMatch = value.match(/^DRID-\d{8}-[A-Z0-9]{6}$/i);
+                    // Auto-retrieve when a valid DRID pattern is detected (MZ-YYYY-XXXXXXXX or legacy DRID-YYYYMMDD-XXXXXX)
+                    const dridMatch = value.match(/^MZ-\d{4}-[A-Z0-9]{8}$/i) || value.match(/^DRID-\d{8}-[A-Z0-9]{6}$/i);
                     if (dridMatch) {
                       setTimeout(() => {
                         const form = e.target.closest('form');
@@ -500,12 +593,23 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
           {/* Step: Retrieved - Show Details */}
           {step === 'retrieved' && depositSlip && (
             <div>
-              {/* Time Warning */}
-              <div className="flex items-center gap-2 p-3 bg-warning-50 border border-warning rounded-lg mb-4">
-                <FiClock className="w-5 h-5 text-warning" />
-                <span className="text-sm font-medium text-warning">
-                  Time Remaining: {formatTimeRemaining(depositSlip.time_remaining_seconds)}
+              {/* Time Warning with live countdown */}
+              <div className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
+                timeRemaining != null && timeRemaining < 120
+                  ? 'bg-error-50 border border-error'
+                  : 'bg-warning-50 border border-warning'
+              }`}>
+                <FiClock className={`w-5 h-5 ${
+                  timeRemaining != null && timeRemaining < 120 ? 'text-error' : 'text-warning'
+                }`} />
+                <span className={`text-sm font-medium ${
+                  timeRemaining != null && timeRemaining < 120 ? 'text-error' : 'text-warning'
+                }`}>
+                  Time Remaining: {formatTimeRemaining(timeRemaining ?? depositSlip.time_remaining_seconds)}
                 </span>
+                {timeRemaining != null && timeRemaining <= 0 && (
+                  <span className="text-xs bg-error text-white px-2 py-0.5 rounded-full ml-2">EXPIRED</span>
+                )}
               </div>
 
               {/* Transaction Details */}
@@ -765,10 +869,16 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
               </div>
 
               {/* OTP Verification */}
-              <div className="mb-6 p-4 border border-border rounded-lg bg-gray-50">
-                <h3 className="font-semibold text-text-secondary mb-3">OTP Verification (Optional - Disabled)</h3>
+              <div className={`mb-6 p-4 border rounded-lg ${!otpEnabled ? 'border-border bg-gray-50' : otpRequired ? 'border-warning bg-warning-50' : 'border-border bg-gray-50'}`}>
+                <h3 className="font-semibold text-text-secondary mb-3">
+                  OTP Verification {otpRequired ? '(Required)' : otpEnabled ? '(Optional)' : '(Disabled)'}
+                </h3>
                 <p className="text-sm text-text-secondary mb-4">
-                  OTP verification is currently disabled for testing. You can complete transactions without OTP.
+                  {!otpEnabled
+                    ? 'OTP verification is currently disabled. You can complete transactions without OTP.'
+                    : otpRequired
+                      ? 'OTP verification is required to complete this transaction.'
+                      : 'OTP verification is optional. You can complete transactions without OTP.'}
                   {maskedPhone && <span className="font-medium"> ({maskedPhone})</span>}
                 </p>
 
@@ -872,7 +982,7 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                   fullWidth
                   onClick={handleComplete}
                   loading={loading}
-                  disabled={!authorizationCaptured}
+                  disabled={!authorizationCaptured || (otpRequired && !otpVerified)}
                 >
                   Complete Transaction
                 </Button>
@@ -887,7 +997,9 @@ const DRIDLookupModal: React.FC<DRIDLookupModalProps> = ({
                 <FiCheck className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-text-primary mb-2">
-                Transaction Completed!
+                {depositSlip
+                  ? `${depositSlip.currency} ${parseFloat(String(depositSlip.amount)).toLocaleString()} ${getCompletionVerb(depositSlip.transaction_type)}!`
+                  : 'Transaction Completed!'}
               </h3>
               <p className="text-text-secondary mb-6">
                 Reference: {completionResult.transaction_reference}
