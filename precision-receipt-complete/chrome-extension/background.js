@@ -248,7 +248,14 @@ async function handleMessage(message, sender) {
 
     // ── Slip Operations ──
     case 'RETRIEVE_SLIP': {
-      const { drid } = message;
+      const { drid, accessToken: pageToken, refreshToken: pageRefresh } = message;
+      // Ensure auth token is available (content script passes it from page localStorage)
+      if (pageToken) {
+        const existing = await getAuthToken();
+        if (!existing.accessToken) {
+          await setAuthToken(pageToken, pageRefresh);
+        }
+      }
       try {
         const result = await retrieveSlip(drid);
         const slip = result.deposit_slip || result;

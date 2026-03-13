@@ -672,9 +672,13 @@
     renderModal();
 
     try {
-      const result = await chrome.runtime.sendMessage({ type: 'RETRIEVE_SLIP', drid });
+      // Pass auth token from page localStorage so background has it even if session storage was cleared
+      const pageToken = localStorage.getItem('access_token');
+      const pageRefresh = localStorage.getItem('refresh_token');
+      const result = await chrome.runtime.sendMessage({ type: 'RETRIEVE_SLIP', drid, accessToken: pageToken, refreshToken: pageRefresh });
+      if (!result) throw new Error('No response from extension background');
       if (result.error) throw new Error(result.error);
-      if (!result.success) throw new Error('Retrieval failed');
+      if (!result.success) throw new Error(result.message || 'Retrieval failed');
       modalState.depositSlip = result.slip;
       modalState.validation = result.validation;
       modalState.step = 'retrieved';

@@ -44,7 +44,7 @@ async function refreshAccessToken() {
 
   const { apiBaseUrl } = await getConfig();
   try {
-    const resp = await fetch(`${apiBaseUrl}/auth/refresh`, {
+    const resp = await fetch(`${apiBaseUrl}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -114,7 +114,7 @@ async function login(username, password) {
   formData.append('username', username);
   formData.append('password', password);
 
-  const resp = await fetch(`${apiBaseUrl}/auth/login`, {
+  const resp = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData,
